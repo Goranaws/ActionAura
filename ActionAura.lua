@@ -1,52 +1,234 @@
-local AddonName  = ...
-local actionAura = LibStub("AceAddon-3.0"):NewAddon(AddonName)
-local variables = "actionAura_SV"
+local AddonName = ...
+local actionAura  = LibStub("AceAddon-3.0"):GetAddon(AddonName)
 
-actionAura.isUnitPlayer = {
-	player = true,
-	vehicle = true,
-	pet = true,
+actionAura.buttonRegistry = {}
+
+ --Default Settings
+actionAura.defaults = {
+	translations = {
+		["Entangling Roots"] = {"Mass Entanglement"},
+	},
+	personalAurasOnly == true,
+	coloredBorderShow = true,
+	filterOverride = {
+		buff = {},
+		debuff = {},
+		ignore = {}
+	},
+	spells = {
+		["Force of Nature"] = {
+			override = "debuff",
+			flashWhen = {
+				missingFlash = false,
+				
+				expire = false,
+				expireTime = 0,
+				
+				stack = false,
+				stackCount = 0,
+				
+				missing = {},
+				present = {},
+				
+				health = false,
+				healthBelow = 0,
+			},
+			displayAs = {},
+			units = {
+				target = false,
+				player = false,
+				mouseover = false,
+				focus = false,
+			},
+		},
+		["Entangling Roots"] = {
+			override = "debuff",
+			flashWhen = {
+				missingFlash = false,
+				
+				expire = false,
+				expireTime = 0,
+				
+				stack = false,
+				stackCount = 0,
+				
+				missing = {},
+				present = {},
+				
+				health = false,
+				healthBelow = 0,
+			},
+			displayAs = {"Mass Entanglement"},
+			units = {
+				target = false,
+				player = false,
+				mouseover = false,
+				focus = false,
+			},
+		},
+		["Mass Entanglement"] = {
+			override = "debuff",
+			flashWhen = {
+				missingFlash = false,
+				
+				expire = false,
+				expireTime = 0,
+				
+				stack = false,
+				stackCount = 0,
+				
+				missing = {},
+				present = {},
+				
+				health = false,
+				healthBelow = 0,
+			},
+			displayAs = {"Entangling Roots"},
+			units = {
+				target = false,
+				player = false,
+				mouseover = false,
+				focus = false,
+			},
+		},
+	},
 }
 
-actionAura.units = {
+actionAura.spellDefaults = {
+	override = "ignore",
+	auraPriority = true,
+	displayAs = {},
+	
+	flashWhen = {
+		missingFlash = false,
+		
+		expire = false,
+		expireTime = 0,
+		
+		stack = false,
+		stackCount = 0,
+		
+		missing = {},
+		present = {},
+		
+		health = false,
+		healthBelow = 0,
+	},
+	
+	units = {
+		target = false,
+		player = false,
+		mouseover = false,
+		focus = false,
+	},
+	harm = {
+		target = false,
+		player = false,
+		mouseover = false,
+		focus = false,
+	},
+}
+
+--Define the locals
+local possibleUnits = {
 		"mouseover",
 		"target",
 		"focus" ,
 		"player",
  }
 
-actionAura.GetUnit = {
-	HARMFUL = function()
-		for i, unitTarget in pairs(actionAura.units) do
-			if  actionAura:Get("ignoreHarm_"..unitTarget) ~= true then
-				if (UnitExists(unitTarget) == true)
-				and(UnitIsDeadOrGhost(unitTarget) ~= true)
-				and(UnitCanAttack(unitTarget, "player") == true) then
-					return unitTarget, i
+local function HarmfulUnitIsPresent(unit)
+	if (UnitExists(unit) == true)
+	and(UnitIsDeadOrGhost(unit) ~= true)
+	and(UnitCanAttack(unit, "player") == true) then
+		return true
+	end
+end
+
+local function HelpfulUnitIsPresent(unit)
+	if (UnitExists(unit) == true)
+	and(UnitIsDeadOrGhost(unit) ~= true)
+	and(UnitCanAttack(unit, "player") ~= true) then
+		return true
+	end
+end
+
+local function firstToUpper(str)
+	return (str:gsub("^%l", string.upper))
+end
+
+local GetUnit = {
+	HARMFUL = function(auraName)
+		local unit
+		local sets = auraName and actionAura:Get("spells")[auraName]
+		
+		if sets then
+			for i, possibleUnit in pairs(possibleUnits) do
+				if sets.harm[possibleUnit] == false then
+					if HarmfulUnitIsPresent(possibleUnit) then
+						unit = possibleUnit
+						break
+					end
+				end
+			end
+		else
+			for i, possibleUnit in pairs(possibleUnits) do
+				if actionAura:Get("ignoreHarm_"..possibleUnit) ~= true then
+					if HarmfulUnitIsPresent(possibleUnit) then
+						unit = possibleUnit
+						break
+					end
 				end
 			end
 		end
-		--if no unit is found, return a filler unit to prevent errors
-		return actionAura:Get("ignoreHarm_".."target") ~= true and "target"
+				
+		return unit
 	end,
-	HELPFUL = function()
-		for i, unitTarget in pairs(actionAura.units) do
-			if  actionAura:Get("ignoreHelp_"..unitTarget) ~= true then
-				if (UnitExists(unitTarget) == true)
-				and(UnitIsDeadOrGhost(unitTarget) ~= true)
-				and(UnitCanAttack(unitTarget, "player") ~= true) then
-					return unitTarget, i
+	HELPFUL = function(auraName)
+		local unit
+		local sets = auraName and actionAura:Get("spells")[auraName]
+		
+		if sets then
+			for i, possibleUnit in pairs(possibleUnits) do
+				if sets.units[possibleUnit] == false then
+					if HelpfulUnitIsPresent(possibleUnit) then
+						unit = possibleUnit
+						break
+					end
+				end
+			end
+		else
+			for i, possibleUnit in pairs(possibleUnits) do
+				if actionAura:Get("ignoreHelp_"..possibleUnit) ~= true then
+					if HelpfulUnitIsPresent(possibleUnit) then
+						unit = possibleUnit
+						break
+					end
 				end
 			end
 		end
-		--if no unit is found, return a filler unit to prevent errors
-		return actionAura:Get("ignoreHelp_".."player") ~= true and "player"
+	
+		return unit
 	end,
 }
 
+local isUnitPlayer = {
+	player = true,
+	vehicle = true,
+	pet = true,
+}
+
+local auraColor = {
+	HELPFUL = {0,1,0,1},
+	HARMFUL = {1,0,0,1},
+	[""] = {1,1,1,1},
+}
+
+
+--The Machinery!
 function actionAura:GetActionIndex(actionButton)
 	local name = actionButton.name or actionButton:GetName()	
-	if name and string.find(name, 'BT4Button', 1) then
+	if type(name) == "string" and name and string.find(name, 'BT4Button', 1) then
 		--Bartender4 Support
 		local actionType, actionID = actionButton:GetAction()
 		if actionType == 'action' then
@@ -71,22 +253,23 @@ function actionAura:GetAuraTarget(actionType, actionID, filter, auraName)
 			end
 		end
 	end
-	return self.GetUnit[filter]()
-end
 
-local filterOverride = {
-	buff = {},
-	debuff = {
-		"Force of Nature",
-	},
-}
+	return filter and GetUnit[filter](auraName)
+end
 
 function actionAura:GetFilter(spellName)
 	local filter = IsHarmfulSpell(spellName) and "HARMFUL" or IsHelpfulSpell(spellName) and "HELPFUL" or "HARMFUL"
 
 	local filterOverride = self:Get("filterOverride")
 
-	if tContains(filterOverride.debuff, spellName) then
+	if actionAura:Get("spells")[spellName] then
+		local override = actionAura:Get("spells")[spellName].override
+		if override == "ignore" then
+			return
+		else
+			filter = override == "debuff" and "HARMFUL" or override == "buff" and "HELPFUL"
+		end
+	elseif tContains(filterOverride.debuff, spellName) then
 		filter = "HARMFUL"
 	elseif tContains(filterOverride.buff, spellName) then
 		filter = "HELPFUL"
@@ -96,8 +279,11 @@ function actionAura:GetFilter(spellName)
 end
 
 function actionAura:GetAuraDetails(spellName, actionType, actionID)
-	if spellName and _G[variables].translations[spellName] and (#_G[variables].translations[spellName] > 0) then
-		for i, overRideSpellName in pairs(_G[variables].translations[spellName]) do
+	--Check for spell Overrides, if found, return them instead
+
+	--spell Specific overrides
+	if spellName and actionAura:Get("spells")[spellName] and (#actionAura:Get("spells")[spellName].displayAs > 0) then
+		for i, overRideSpellName in pairs(actionAura:Get("spells")[spellName].displayAs) do
 			if overRideSpellName then
 				local filter = self:GetFilter(spellName)
 				local unit = self:GetAuraTarget(actionType, actionID, filter, overRideSpellName)
@@ -110,6 +296,23 @@ function actionAura:GetAuraDetails(spellName, actionType, actionID)
 			end
 		end
 	end
+
+	--Maybe Delete Soon: Mass override List
+	if spellName and actionAura:Get("translations")[spellName] and (#actionAura:Get("translations")[spellName] > 0) then
+		for i, overRideSpellName in pairs(actionAura:Get("translations")[spellName]) do
+			if overRideSpellName then
+				local filter = self:GetFilter(spellName)
+				local unit = self:GetAuraTarget(actionType, actionID, filter, overRideSpellName)
+				if unit then
+					local name, _, _, _, duration, expireTime, source, _, _, _, _, _, castByPlayer = AuraUtil.FindAuraByName(overRideSpellName, unit, filter)
+					if name then
+						return name, duration, expireTime, (castByPlayer == true) and "player" or source, filter
+					end
+				end
+			end
+		end
+	end
+	
 	if spellName then
 		local filter = self:GetFilter(spellName)
 				
@@ -148,53 +351,63 @@ function actionAura:GetAuraName(actionButton)
 
 		local auraName, auraDuration, auraExpireTime, source, filter = self:GetAuraDetails(spellName, actionType, actionID)
 		
-		if not actionAura:Get("personalAurasOnly") == true then
+		local ignore = actionAura:Get("filterOverride").ignore
+
+		if (spellName and tContains(ignore, spellName)) or (auraName and tContains(ignore, auraName)) then
+			return
+		end
+		
+		
+		if not self:Get("personalAurasOnly") == true then
 			source = "player"
 		end
 		
-		if auraName and self.isUnitPlayer[source] then
+		if auraName and isUnitPlayer[source] then
 			local spellStart, spellDuration = GetSpellCooldown(spellName)
 			return auraName, filter, auraExpireTime, auraDuration, spellStart or 0, spellDuration or 0
 		end
 	end
 end
 
-local auraColor = {
-	HELPFUL = {0,1,0,1},
-	HARMFUL = {1,0,0,1},
-	[""] = {1,1,1,1},
-}
+local allActionButtons = {}
 
-actionAura.buttonRegistry = {}
-function actionAura:SetAuraCooldown(actionButton, filter, expireTime, duration)
-	if actionButton.auraCooldown == nil then
-		if not tContains(self.buttonRegistry, actionButton) then
-			tinsert(self.buttonRegistry, actionButton)
-			local name = actionButton.name or actionButton:GetName()
-			actionButton.spellCooldown = name and _G[name .. 'Cooldown'] or actionButton.cooldown -- catches more things.
-			actionButton.auraCooldown = CreateFrame('Cooldown', nil, actionButton, 'CooldownFrameTemplate')
+function actionAura:RegisterButton(actionButton)
+	if actionButton and actionButton.auraCooldown == nil and not tContains(allActionButtons, actionButton) then
+		tinsert(allActionButtons, actionButton)
+		local name = actionButton.name or actionButton:GetName()
+		actionButton.spellCooldown = name and _G[name .. 'Cooldown'] or actionButton.cooldown -- catches more things.
+		actionButton.auraCooldown = CreateFrame('Cooldown', nil, actionButton, 'CooldownFrameTemplate'); do
 			actionButton.auraCooldown:SetAllPoints(actionButton.icon)
 			actionButton.auraCooldown.statusGlow = actionButton.auraCooldown:CreateTexture(nil, 'OVERLAY', 2)
 			actionButton.auraCooldown.statusGlow:SetAllPoints(actionButton.icon)
 			actionButton.auraCooldown.statusGlow:SetAtlas("bags-glow-white")
-
-			--never show both cooldown textures at the same time.
-			actionButton.auraCooldown:SetScript("OnShow", function()
-				actionButton.spellCooldown:Hide()
-			end)
-
-			actionButton.auraCooldown:SetScript("OnHide", function()
-				actionButton.spellCooldown:Show()
-			end)
-			
-			actionButton.spellCooldown:SetScript("OnShow", function()
-				if actionButton.auraCooldown:IsShown() then
-					actionButton.spellCooldown:Hide()
-				end
-			end)
 		end
+		
+		--never show both cooldown textures at the same time.
+		--Using (:SetAlpha) instead of (:Show) and (:Hide).
+		--If using OmniCC, cooldown text is lost with (:Hide) and (:Show).
+		actionButton.auraCooldown:SetScript("OnShow", function()
+			actionButton.spellCooldown:SetAlpha(0)
+		end)
+
+		actionButton.auraCooldown:SetScript("OnHide", function()
+			actionButton.spellCooldown:SetAlpha(1)
+		end)
+		
+		actionButton.spellCooldown:SetScript("OnShow", function()
+			if actionButton.auraCooldown:IsShown() then
+				actionButton.spellCooldown:SetAlpha(0)
+			end
+		end)
+		
+		actionAura:RegisterButtonGlow(actionButton)
+		
 	end
-	
+end
+
+function actionAura:SetAuraCooldown(actionButton, filter, expireTime, duration)
+	self:RegisterButton(actionButton)
+
 	if actionAura:Get("coloredBorderShow") == true then
 		actionButton.auraCooldown.statusGlow:SetVertexColor(unpack(auraColor[filter or ""]))
 	else
@@ -210,7 +423,11 @@ function actionAura:UpdateActionAura(actionButton)
 	local hasAuraTimer = auraName and auraExpireTime
 	local auraLongerThanCooldown = hasAuraTimer and auraExpireTime > spellStart + spellDuration
 	
-	if hasAuraTimer and ((actionAura:Get("prioritizeAura") == true) or auraLongerThanCooldown)  then
+	local sets = actionAura:Get("spells")[auraName]
+	
+	local auraPriority = sets and sets.auraPriority and actionAura:Get("prioritizeAura") == true or auraLongerThanCooldown
+	
+	if hasAuraTimer and (auraPriority) then
 		self:SetAuraCooldown(actionButton, filter, auraExpireTime, auraDuration)
 	elseif actionButton.auraCooldown and actionButton.auraCooldown:IsShown() then
 		actionButton.auraCooldown:SetCooldown(0, 0)
@@ -218,1187 +435,925 @@ function actionAura:UpdateActionAura(actionButton)
 	end
 end
 
-function actionAura:OnInitialize()
-	if not self.eventHandler then
-		self:RegisterVariables(reset)
 
-		hooksecurefunc("ActionButton_UpdateCooldown", function(actionButton)
-			self:UpdateActionAura(actionButton)
-		end)
+local flashDrive = CreateFrame("Frame")
+
+local flashWhen = {
+		health = false,
+		healthBelow = 0,
+
+		missingFlash = false,
+		expire = false,
+		expireTime = 0,
 		
-		if CooldownFrame_Set then
-			--Bartender4 Support
-			hooksecurefunc("CooldownFrame_Set", function(cd)
-				self:UpdateActionAura(cd:GetParent())
-			end)
-		end
-
-		--the following is for fringe cases
-		self.eventHandler = CreateFrame("Frame")
-		self.eventHandler:RegisterEvent("PET_BAR_UPDATE_USABLE")
-		self.eventHandler:RegisterEvent("PET_UI_UPDATE")
-		self.eventHandler:RegisterEvent("UNIT_AURA")
-		self.eventHandler:RegisterEvent("UNIT_COMBAT")
-		self.eventHandler:RegisterEvent("UNIT_PET")
-		self.eventHandler:RegisterEvent("UNIT_SPELLCAST_SENT")
-		self.eventHandler:RegisterEvent("UNIT_ENTERED_VEHICLE")
-		self.eventHandler:RegisterEvent("UNIT_HEALTH")
-		self.eventHandler:RegisterEvent("UNIT_TARGET")
-		self.eventHandler:RegisterEvent("PLAYER_FOCUS_CHANGED")
-
-		self.eventHandler:SetScript("OnEvent", function()
-			for _, button in pairs(self.buttonRegistry) do
-				self:UpdateActionAura(button)
-			end
-		end)
-	end
-end
-
-do --settings access
-	
-	actionAura.defaults = {
-		translations = {
-			["Entangling Roots"] = {"Mass Entanglement"},
-
-		},
-		personalAurasOnly == true,
-		coloredBorderShow = true,
-		filterOverride = {
-			buff = {},
-			debuff = {
-				"Force of Nature"
-			},
-		}
+		stack = false,
+		stackCount = 0,
+		
+		missing = {},
+		present = {},
+		
+		missingFlash = false,
+		
 	}
 
-	function actionAura:RegisterVariables(reset)
-		if reset == true then
-			_G[variables] = nil
-		end
-		_G[variables] = _G[variables] or {}
-		if self.defaults then
-			for key, value in pairs(self.defaults) do
-				_G[variables][key] = _G[variables][key] or value
-			end
-		end
-	end
+local tracker = {}
 
-	function actionAura:Get(key, ...)
-		if ... then
-			--not yet working
-			local setting = _G[variables][key]
-			for _, key in pairs({...}) do
-				if type(setting) == "table" then
-					setting = setting[key]
-				elseif not setting[key] then
-					setting = nil
-					break
-				else
-					setting = setting[key]
-				end
+local function GetButtonSpellName(button)
+	local actionIndex = actionAura:GetActionIndex(button)
+	local actionType, actionID, subType, globalID = GetActionInfo(actionIndex) --Returns information about a specific action.
+	local spellName
+
+	if actionType then
+		local metric = actionType..actionID
+
+		local spellID
+
+		if tracker[metric] then
+			spellName, spellID = unpack(tracker[metric])
+		elseif actionType == 'spell' then
+			if actionID and actionID > 0 then
+				spellName, _, _, _, _, _, _, spellID = GetSpellInfo(actionID)
+			elseif globalID then
+				spellName, _, _, _, _, _, _, spellID = GetSpellInfo(globalID)
 			end
-			
-			if self.defaults and not setting then
-				setting = self.defaults[key]
-				for _, key in pairs({...}) do
-					if type(setting) == "table" then
-						setting = setting[key]
-					elseif not setting[key] then
-						setting = nil
-						break
-					else
-						setting = setting[key]
+		elseif actionType == 'item' then
+			spellName, spellID = GetItemSpell(actionID)
+		elseif actionType == 'macro' then
+			actionID = GetMacroSpell(actionID)
+			if actionID then
+				spellName, _, _, _, _, _, _, spellID = GetSpellInfo(actionID)
+			end
+		end
+		
+		tracker[metric] = {spellName, spellID}
+		
+		return spellName, actionType, spellID or actionID
+	end
+end
+
+local lastGCD
+
+local function FlashButton(button)
+	local spellName, actionType, spellID = GetButtonSpellName(button)
+	local spellSettings  = actionAura:Get("spells")[spellName]
+	local flashSettings = spellSettings and spellSettings.flashWhen --Flash details
+	
+	local shouldPing = false
+	
+	 --Does this spell have specific settings?
+	if spellSettings and spellSettings.override ~= "ignore" then
+		--Spell Specific Settings have been found!
+
+		local unit; do
+			for i, b in pairs(possibleUnits) do
+				if spellSettings.units[b] == false then
+					--This unit is not being ignored!
+					if (spellSettings.override == "debuff" and HarmfulUnitIsPresent(b))
+					or (spellSettings.override == "buff"   and HelpfulUnitIsPresent(b)) then
+						unit = b
 					end
 				end
 			end
-			return setting
-		else
-			return _G[variables][key] or self.defaults and self.defaults[key]
 		end
-	end
 
-	function actionAura:Set(key, value)
-		_G[variables][key] = value
-	end
-
-	function actionAura:Reset()
-		self:RegisterVariables(true)
-	end
-end
-
-function actionAura:AddTranslation(spellName, translation)
-	_G[variables].translations[spellName] = _G[variables].translations[spellName] or {}
-	if translation then
-		if not tContains(_G[variables].translations[spellName], translation) then
-			tinsert(_G[variables].translations[spellName], translation)
-		end
-	end
-end
-
-local optionItems = {}
-
-function optionItems.advEditBox(parent, title)
-	local button = CreateFrame("Frame", AddonName..title.."Button", parent, "TooltipBorderedFrameTemplate")
-	button:SetHeight(25)
-
-	button.edit = CreateFrame("Button", AddonName..title.."ButtonEdit", button)
-		button.edit:SetSize(15, 15)
-		button.edit:SetPoint("Right", -5, 0)
-		button.edit:SetPushedAtlas("NPE_ArrowDown")
-		button.edit:SetNormalAtlas("NPE_ArrowDownGlow")
-		button.edit:SetHighlightAtlas("bags-glow-artifact")
-
-	button.text = CreateFrame("EditBox", AddonName..title.."ButtonText", button, "InputBoxScriptTemplate")
-		button.text:SetHeight(15)
-		button.text:SetAutoFocus(false)
-		button.text:SetTextColor(1,1,1,1)
-		button.text:SetHighlightColor(.5,1,.5)
-		button.text:SetFontObject("GameFontNormal")
-		button.text:SetPoint("Left", 5, 0)
-		button.text:SetPoint("Right", button.edit, "Left", 0, 0)
-
-		button.text.high = button.text:CreateTexture(nil, 'HIGHLIGHT', 2)
-		button.text.high:SetAllPoints(button.text)
-		button.text.high:SetPoint("TopLeft", 0, 1)
-		button.text.high:SetPoint("BottomRight", 0, -1)
-		button.text.high:SetAtlas("soulbinds_collection_entry_highlight")
-		button.text:SetHitRectInsets(-5, -15, -5, -5)
-
-	return button
-end
-
-function optionItems.DropDown(parent, title)
-	local button = CreateFrame("Frame", AddonName..title.."DropDown", parent, "TooltipBorderedFrameTemplate")
-	button:SetHeight(25)
-
-	button.edit = CreateFrame("Button", AddonName..title.."ButtonEdit", button)
-		button.edit:SetSize(15, 15)
-		button.edit:SetPoint("Right", -5, 0)
-		button.edit:SetPushedAtlas("NPE_ArrowDown")
-		button.edit:SetNormalAtlas("NPE_ArrowDownGlow")
-		button.edit:SetHighlightAtlas("bags-glow-artifact")
-
-	button.text = button:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-		button.text:SetTextColor(1,1,1,1)
-		button.text:SetPoint("Left", 5, 0)
-		button.text:SetPoint("Right", button.edit, "Left", 0, 0)
-
-		button.high = button:CreateTexture(nil, 'HIGHLIGHT', 2)
-		button.high:SetAllPoints(button.text)
-		button.high:SetPoint("TopLeft", button.text, 0, 1)
-		button.high:SetPoint("BottomRight", button.text, 0, -1)
-		button.high:SetAtlas("soulbinds_collection_entry_highlight")
-		--button:SetHitRectInsets(-5, -15, -5, -5)
-	
-	button:EnableMouse(true)
-	
-	return button
-end
-
-function optionItems.CheckButton(parent, optionDetails)
-	local checkButton = CreateFrame("CheckButton", parent:GetName()..optionDetails.title, parent, "UICheckButtonTemplate")
-	checkButton.text:SetText(optionDetails.title)
-	checkButton.text:SetFont(checkButton.text:GetFont(), 12) --don't want to change font, just size.
-
-	checkButton:SetHitRectInsets(0, -checkButton.text:GetWidth(), 0, 0)
-
-	checkButton:SetScript("OnClick", optionDetails.OnClick)
-	checkButton:SetScript("OnShow", optionDetails.OnShow)
-	optionDetails.OnShow(checkButton)
-
-	if optionDetails.tooltip then
-		checkButton:SetScript("OnEnter",  function()
-			GameTooltip:SetOwner(checkButton.text, "ANCHOR_RIGHT")
-			GameTooltip:SetText(optionDetails.tooltip)
-			GameTooltip:Show()
-		end)
-
-		checkButton:SetScript("OnLeave",  function()
-			GameTooltip:Hide()
-		end)
-	end
-
-	return checkButton
-end
-
-function optionItems.Slider(parent, optionDetails)
-	local contain = CreateFrame("Frame", nil, parent)
-	contain:SetSize(parent:GetWidth(), 20)
-
-	local slider = CreateFrame("Slider", parent:GetName()..optionDetails.title, contain, "HorizontalSliderTemplate")
-	
-	slider.Title = slider:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-	slider.Title:SetPoint("Left", contain, 3, 0)
-	slider.Title:SetJustifyH("Left")		
-	slider.Title:SetText(optionDetails.title)
-	
-	if optionDetails.tooltip then
-		slider:SetScript("OnEnter",  function()
-			GameTooltip:SetOwner(slider.Title, "ANCHOR_RIGHT")
-			GameTooltip:SetText(optionDetails.tooltip)
-			GameTooltip:Show()
-		end)
-
-		slider:SetScript("OnLeave",  function()
-			GameTooltip:Hide()
-		end)
-	end
-	
-	slider.Value = slider:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-	slider.Value:SetPoint("Right", contain, -3, 0)
-	slider.Value:SetJustifyH("Right")		
-	slider.Value:SetText(" ")
-	slider.Value:SetWidth(25)
-	
-	slider:SetSize(150, 15)
-	
-	slider:SetPoint("TopLeft", slider.Title, "TopRight", 2, 0)
-	slider:SetPoint("TopRight", slider.Value, "TopLeft", -2, 0)
-	
-	slider:SetMinMaxValues(optionDetails.min or 1, optionDetails.max or 200)
-	
-	slider:SetScript("OnValueChanged", function(self)
-		optionDetails.OnValueChanged(slider)
-		slider.Value:SetText(self:GetValue())
-	
-	end)
-	slider:SetScript("OnShow", optionDetails.OnShow)
-	
-	slider:SetValueStep(optionDetails.step or 1)
-	
-	slider:SetScript("OnMouseWheel", function(_, delta) slider:SetValue(slider:GetValue() + (delta * slider:GetValueStep())) end)
-	
-	slider:SetObeyStepOnDrag(true)
-	
-	optionDetails.OnShow(slider)
-
-
-	return contain
-end
-
-function optionItems.Button(parent, optionDetails)
-	local button = CreateFrame("Button", nil, parent, "UIMenuButtonStretchTemplate")
-	button:SetSize(parent:GetWidth(), 25)
-	
-	button.Text:SetText(optionDetails.title)
-	
-	button:SetScript("OnClick", optionDetails.OnClick)
-
-	return button
-end
-
-function optionItems.Page(parent, optionInfo)
-	optionInfo.panel = CreateFrame("Frame", parent:GetName().."_"..optionInfo.name, parent)
-
-	optionInfo.panel:SetSize(parent:GetWidth()-10, 250)
-	optionInfo.panel:SetPoint("TopLeft", parent, (#parent.optionPanels == 0) and 0 or (300 *  #parent.optionPanels), -3)
-	local yBase, yOffset = optionInfo.panel:GetBottom()
-	
-	local panelCount = #parent.optionPanels
-	
-	optionInfo.panel.New = {}
-	for i, b in pairs(optionItems) do
-		if i ~= Page then
-			optionInfo.panel.New[i] = function(optionDetails)
-				return b(optionInfo.panel, optionDetails)
+		local reactionUnit; do
+			for i, b in pairs(possibleUnits) do
+				if spellSettings.harm[b] == false then
+					--This unit is not being ignored!
+					if (HarmfulUnitIsPresent(b)) then
+						reactionUnit = b
+					end
+				end
 			end
 		end
-	end
 	
-	if optionInfo.options then
-		optionInfo.panel.Items = {}
-		for i, optionDetails in pairs(optionInfo.options) do
-			local item = optionInfo.panel.New[optionDetails.kind]
-			if item then
-				local object = item(optionDetails)
+		if flashSettings.health == true and reactionUnit then
+			local value, high = UnitHealth(reactionUnit), UnitHealthMax(reactionUnit) 
+			if (value / high) * 100 <= flashSettings.healthBelow then
+				shouldPing = true
+			end
+		end
+		
+		--combatRestrict is not enabled, or we are in combat!
+		local combat = flashSettings.combatOnly ~= true and true or InCombatLockdown() 
+		
+		--What type of spell are we tracking?
+		local filter = spellSettings.override == "debuff" and "HARMFUL" or spellSettings.override == "buff" and "HELPFUL"
+
+		
+		do --flashSettings.missingFlash = false, flashSettings.expire = false, flashSettings.expireTime = 0,
+		
+			local spellStart, spellDuration = GetSpellCooldown(spellName)
+			spellStart = spellStart ~= 0 and spellStart
+			spellDuration = spellDuration ~= 0 and spellDuration
+
+			local spellExpire = spellStart and spellStart + spellDuration - GetTime()	
+
+			if unit then
+				local name, duration, expireTime; do
+					if not spellDuration or (spellDuration <= lastGCD) == true then
+						--there is no cooldown or it's less than the Global Cooldown
+						
+						name, _, _, _, duration, expireTime = AuraUtil.FindAuraByName(spellName, unit, filter)
+						local duration = duration ~= 0 and duration or nil
 			
-				object:SetPoint("TopLeft", 0, -5 -(#optionInfo.panel.Items * 30) )
+						spellExpire = ((duration and duration > lastGCD and name and expireTime) and expireTime - GetTime()) or spellExpire or nil
+			
+						if combat and flashSettings.expire == true then
+							if not spellExpire or spellExpire <= flashSettings.expireTime then
+								--the spell was on cooldown or had an aura timer, and it's time is about to expire.
+								shouldPing = true
+							end
+						end
+					end
+				end
 				
-				yOffset = object:GetBottom()
-				
-				tinsert(optionInfo.panel.Items, object)
+				if  not name and (not spellExpire or spellExpire <= lastGCD) and combat and flashSettings.missingFlash == true then
+					--this spell is not present on target, and the spell can be casted
+					shouldPing = true
+				end
+		
+				if not spellExpire then --Don't highlight a spell, unless it can be casted.
+					for i, missingSpell in pairs(flashSettings.missing) do
+						local name = AuraUtil.FindAuraByName(missingSpell, unit)--, filter)); --We don't care what type of spell it is, react to it's existence
+						if not name then
+							--one the spells on this spell's missing list was not found
+							shouldPing = true
+						end
+					end
+					for i, presentSpell in pairs(flashSettings.present) do
+						local name  = AuraUtil.FindAuraByName(presentSpell, unit)--, filter));
+						if name then
+							--one the spells on this spell's present list was found
+							shouldPing = true
+						end
+					end
+				end
 			end
 		end
-
+		actionAura:Ping(button, shouldPing, spellName)
 	end
-	if #parent.optionPanels < 1 then
-		parent.PageTitle:SetText(optionInfo.name)
-	end
-
-	tinsert(parent.optionPanels, optionInfo)
-	
-	if yBase and yOffset and ((yBase - yOffset) > 0) then
-		local range = (yBase - yOffset) + 8
-	
-		optionInfo.panel:SetSize(parent:GetWidth()-10, 250 + range)
-	
-		local scroll = 0
-		optionInfo.panel:SetScript("OnMouseWheel", function(_, delta)
-			scroll = scroll - (delta*20)
-			scroll = max(0, min(range, scroll))
-			--optionInfo.panel:SetPoint("TopLeft")
-			optionInfo.panel:SetPoint("TopLeft", parent, (panelCount == 0) and 0 or (190 *  panelCount), (-3) + scroll)
-		end)
-	end
-	
-	parent.PageIndex:SetText(1 .."/".. #parent.optionPanels)
-	
-	return optionInfo.panel
 end
+flashDrive:SetScript("OnUpdate", function()
+	
+	local buttons = actionAura.GetButtons and actionAura:GetButtons()
+	if not buttons or #buttons == 0 then
+		return
+	end
+	
+	--Global Cooldown, for detecting when a spell is on cooldown
+	local _, GCD, enabled, modRate = GetSpellCooldown(61304)
+	lastGCD = GCD ~= 0 and GCD or lastGCD or 0
 
-local function GetSpellNameFromLink(linkText)
-	if linkText:match(":(%d+)") then --it is a link of some sort
-		if strfind(linkText, "spell:", 1, true) then
-			-- it is a spell link
-			linkText = GetSpellInfo(tonumber(linkText:match("spell:(%d+)")))
-		else
-			--it is not a spell link, don't allow it
-			linkText = nil
+	local shown = actionAura.optionsPanel and actionAura.optionsPanel:IsShown() == true and actionAura.optionsPanel.page == 5 or nil
+
+	if not shown then
+		for i, button in pairs(buttons) do
+			FlashButton(button)
 		end
 	end
-	return linkText
+end)
+
+
+local overlayed = {}
+
+local function IsOverlayed(spellName, spellID)
+	return overlayed[spellName] or spellID and IsSpellOverlayed(spellID)
 end
 
-local function SetActiveEditBox(editBox, oEditBox)
-	local text = GetSpellNameFromLink(editBox:GetText())
-
-	if text == nil then
-		ACTIVE_CHAT_EDIT_BOX = self.Original.text
+local function UpdateOverlayGlow(self)
+	local spellType, id, subType  = GetActionInfo(self.action);
+	local spellName = id and GetSpellInfo(id)
+	
+	if ( spellType == "spell" and (IsOverlayed(spellName, id)) ) then
+		local _= not self.overlay and ActionButton_ShowOverlayGlow(self);
+	elseif ( spellType == "macro" ) then
+		local spellId = GetMacroSpell(id);
+		spellName = spellId and GetSpellInfo(spellId) or spellName
+		if ( spellId and (IsOverlayed(spellName, spellId)) ) then
+			local _= not self.overlay and ActionButton_ShowOverlayGlow(self);
+		else
+			ActionButton_HideOverlayGlow(self);
+		end
 	else
-		local text = GetSpellNameFromLink(oEditBox:GetText())
-		if text == nil then
-			ACTIVE_CHAT_EDIT_BOX = self.Translation.text
+		ActionButton_HideOverlayGlow(self);
+	end
+end
+
+function actionAura:RegisterButtonGlow(button)
+	button.UpdateOverlayGlow = UpdateOverlayGlow
+end
+
+function actionAura:Ping(button, shouldPing, spellName)
+	if spellName then
+		overlayed[spellName] = shouldPing == true or nil
+	end
+	
+	local spellType, id, subType  = GetActionInfo(button.action);
+	local spellName = id and GetSpellInfo(id)
+	
+	if ( spellType == "spell" and (overlayed[spellName] or IsSpellOverlayed(id)) ) then
+		ActionButton_ShowOverlayGlow(button);
+	elseif ( spellType == "macro" ) then
+		local spellId = GetMacroSpell(id);
+		spellName = spellId and GetSpellInfo(spellId) or spellName
+		if ( spellId and (overlayed[spellName] or IsSpellOverlayed(spellId)) ) then
+			ActionButton_ShowOverlayGlow(button);
 		else
-			ACTIVE_CHAT_EDIT_BOX = nil
+			ActionButton_HideOverlayGlow(button);
+		end
+	else
+		ActionButton_HideOverlayGlow(button);
+	end
+end
+
+function actionAura:PingSpell(spellNameToMatch, shouldPing)
+	local buttons = actionAura:GetButtons()
+	if not buttons or #buttons == 0 then
+		return
+	end
+
+	for i, actionButton in pairs(buttons) do
+		local actionIndex = actionAura:GetActionIndex(actionButton)
+		local actionType, actionID, subType, globalID = GetActionInfo(actionIndex) --Returns information about a specific action.
+		local spellName
+
+		if actionType == 'spell' then
+			if actionID and actionID > 0 then
+				spellName = GetSpellInfo(actionID)
+			elseif globalID then
+				spellName = GetSpellInfo(globalID)
+			end
+		elseif actionType == 'item' then
+			spellName = GetItemSpell(actionID)
+		elseif actionType == 'macro' then
+			actionID = GetMacroSpell(actionID)
+			if actionID then
+				spellName = GetSpellInfo(actionID)
+			end
+		end
+		
+		if spellName and spellNameToMatch and spellNameToMatch == spellName then
+			actionAura:Ping(actionButton, shouldPing, spellName)
 		end
 	end
 end
 
-function actionAura:ShowTranslationPanel()
+--Build the Options Menu
+local toolbelt = LibStub('toolbelt')
+function actionAura:ShowOptions()
 	if not self.optionsPanel then
-		self.optionsPanel = CreateFrame("Frame", AddonName.."optionsPanel", UIParent, "TooltipBorderedFrameTemplate"); do
-			self.optionsPanel:SetSize(300, 300)
-			self.optionsPanel:SetPoint("Center")
-			self.optionsPanel:SetMovable(true)
-			self.optionsPanel:SetScript("OnMouseDown", self.optionsPanel.StartMoving)
-			self.optionsPanel:SetScript("OnMouseUp", self.optionsPanel.StopMovingOrSizing)
-
-			local title = self.optionsPanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-			title:SetPoint("TopLeft", 5, -5)
-			title:SetText("Action Aura")
-
-			local closeButton = CreateFrame("Button", nil, self.optionsPanel, "UIPanelCloseButton")
-			closeButton:SetPoint("TopRight", 2, 2)
-			closeButton:SetScale(.8)
-			closeButton:SetScript("OnClick", function() self.optionsPanel:Hide() end)
-		end
-		local h = 23
-
-		local PageContainer = CreateFrame("ScrollFrame", self.optionsPanel:GetName().."_ScrollPanel", self.optionsPanel); do
-			PageContainer:SetPoint("TopLeft", self.optionsPanel, 10, -(27+18 +3))
-			PageContainer:SetPoint("BottomRight", self.optionsPanel, -10, 10)
-		end
-		
-		local PageAnchor = CreateFrame("Frame", self.optionsPanel:GetName().."_Container", PageContainer); do
-			PageAnchor:SetPoint("TopLeft")
-			PageAnchor:SetSize(300, 300)
-			PageContainer:SetScrollChild(PageAnchor)
-		end
-		
-		local pageButton = CreateFrame("Frame", nil, self.optionsPanel, "TooltipBorderedFrameTemplate"); do
-			pageButton:SetHeight(h)
-			pageButton:SetPoint("TopLeft", (h + 2), -27)
-			pageButton:SetPoint("TopRight", -(h + 2), -27)
-			pageButton:EnableMouse(true)
-			
-			pageButton.high = pageButton:CreateTexture(nil, 'OVERLAY', 2)
-			pageButton.high:SetPoint("TopLeft", 4, -4)
-			pageButton.high:SetPoint("BottomRight", -4, 3)
-			pageButton.high:SetAtlas("soulbinds_collection_entry_highlight")
-			pageButton.high:Hide()
-			
-			pageButton:SetScript("OnEnter", function()
-				pageButton.high:Show()
-			end)
-			
-			pageButton:SetScript("OnLeave", function()
-				pageButton.high:Hide()
-			end)
-			
-		end
-		
-		local PageIndex = pageButton:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-		PageIndex:SetPoint("Right", -5, 0)
-		
-		local PageTitle = pageButton:CreateFontString(nil, "ARTWORK", "GameFontNormal"); do
-			PageTitle:SetPoint("Left", 5, 0)
-			PageTitle:SetPoint("Right", PageIndex, "Left", -3, 0)
-			PageTitle:SetJustifyH("LEFT") 
-		end
-
-		local LeftArrow = CreateFrame("Button", nil, pageButton); do
-			LeftArrow:SetSize(h-6, h-3)
-			LeftArrow:RegisterForClicks("AnyUp")
-			LeftArrow:SetPoint("Right", pageButton, "Left", 0, 0)
-
-			LeftArrow:SetHitRectInsets(0, -pageButton:GetWidth()/2, -1.5, -1.5)
-
-			LeftArrow:SetHighlightTexture("Interface\\AddOns\\"..AddonName.."\\artwork\\LeftArrow-Highlight")
-			LeftArrow:SetPushedTexture("Interface\\AddOns\\"..AddonName.."\\artwork\\LeftArrow-Pushed")
-			LeftArrow:SetNormalTexture("Interface\\AddOns\\"..AddonName.."\\artwork\\LeftArrow")
-			LeftArrow:GetHighlightTexture():SetBlendMode("ADD")
-
-			LeftArrow:GetNormalTexture():SetVertexColor(1,1,1, 1)
-			LeftArrow:GetPushedTexture():SetVertexColor(1,1,1, 1)
-			LeftArrow:GetHighlightTexture():SetVertexColor(1,1,1, 1)
-			
-			LeftArrow:SetScript("OnClick", function()
-				pageButton:GetScript("OnMouseWheel")(pageButton, 1)
-			end)
-			
-			LeftArrow:SetScript("OnEnter", function()
-				pageButton.high:Show()
-			end)
-			
-			LeftArrow:SetScript("OnLeave", function()
-				pageButton.high:Hide()
-			end)
-			
-			LeftArrow:Hide()
-		end
-		
-		local RightArrow = CreateFrame("Button", nil, pageButton); do
-			RightArrow:SetSize(h-6, h-3)
-			RightArrow:RegisterForClicks("AnyUp")
-			RightArrow:SetPoint("Left", pageButton, "Right", 0, 0)
-
-			RightArrow:SetHitRectInsets(-pageButton:GetWidth()/2, 0, -1.5, -1.5)
-
-			RightArrow:SetHighlightTexture("Interface\\AddOns\\"..AddonName.."\\artwork\\LeftArrow-Highlight")
-			RightArrow:SetPushedTexture("Interface\\AddOns\\"..AddonName.."\\artwork\\LeftArrow-Pushed")
-			RightArrow:SetNormalTexture("Interface\\AddOns\\"..AddonName.."\\artwork\\LeftArrow")
-			RightArrow:GetHighlightTexture():SetBlendMode("ADD")
-			
-			RightArrow:GetHighlightTexture():SetTexCoord(1,0,0,1)
-			RightArrow:GetNormalTexture():SetTexCoord(1,0,0,1)
-			RightArrow:GetPushedTexture():SetTexCoord(1,0,0,1)
-
-			RightArrow:GetHighlightTexture():SetVertexColor(1,1,1, 1)
-			RightArrow:GetNormalTexture():SetVertexColor(1,1,1, 1)
-			RightArrow:GetPushedTexture():SetVertexColor(1,1,1, 1)
-			
-			RightArrow:SetScript("OnClick", function()
-				pageButton:GetScript("OnMouseWheel")(pageButton, -1)
-			end)
-			
-			RightArrow:SetScript("OnEnter", function()
-				pageButton.high:Show()
-			end)
-			
-			RightArrow:SetScript("OnLeave", function()
-				pageButton.high:Hide()
-			end)
-			
-		end
-
-		local width = self.optionsPanel:GetWidth()
-		
-		PageAnchor.optionPanels = {}
-		PageAnchor.PageTitle = PageTitle
-		PageAnchor.PageIndex = PageIndex
-		
-		pageButton:SetScript("OnMouseWheel", function(_,delta)
-			local _min = 0
-			local  _max = (#PageAnchor.optionPanels - 1) * width
-			local val = min(max(_min, PageContainer:GetHorizontalScroll() - (delta * width)), _max)
-			local panel = floor(val/width) + 1
-			PageTitle:SetText(PageAnchor.optionPanels[panel].name)
-			PageContainer:SetHorizontalScroll(val)
-			
-			if val <= _min then
-				LeftArrow:Hide()
-			else
-				LeftArrow:Show()
-			end
-			
-			if val >= _max then
-				RightArrow:Hide()
-			else
-				RightArrow:Show()
-			end
-			
-			PageIndex:SetText(panel .."/".. #PageAnchor.optionPanels)
-		end)
-
-		self.optionsPanel.New = {}
-		
-		for i, b in pairs(optionItems) do
-			self.optionsPanel.New[i] = function(optionDetails)
-				return b(PageAnchor, optionDetails)
-			end
-		end
-
-		local options = {
-				{
-					title = "Show Colored Borders",
-					tooltip = "Red glow is for debuffs, Green glow is for buffs.",
-					kind = "CheckButton",
-					OnShow = function(self)
-						self:SetChecked(actionAura:Get("coloredBorderShow"))
-					end,
-					OnClick = function(self)
-						actionAura:Set("coloredBorderShow", self:GetChecked())
-					end,
+		self.optionsPanel = toolbelt.NewMenu({title = "Options",
+			DisplayTitle = "Action Aura",
+			pages = {
+				{name = "Basic",
+					tooltip = "These Options apply to all buffs and debuffs.",
+					options = {
+						{
+							title = "Show Colored Borders",
+							tooltip = "Red glow is for debuffs, Green glow is for buffs.",
+							kind = "CheckButton",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("coloredBorderShow"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("coloredBorderShow", self:GetChecked())
+							end,
+						},
+						{
+							title = "Show Personal Only",
+							tooltip = "Ignore buffs and debuffs that you CAN cast, but weren't cast by you.",
+							kind = "CheckButton",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("personalAurasOnly"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("personalAurasOnly", self:GetChecked())
+							end,
+						},
+						{
+							title = "Prioritize Aura Timer",
+							tooltip = "Always show aura timer, even if the spell cooldown is longer.",
+							kind = "CheckButton",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("prioritizeAura"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("prioritizeAura", self:GetChecked())
+							end,
+						},
+						{
+							title = "Select Direct from Bars",
+							tooltip = "Click to enter text, then click on any button on your action bars to quickly add them to different list in this addon.",
+							kind = "CheckButton",
+							OnShow = function(self)
+								self:SetChecked(actionAura.EnableLinks)
+							end,
+							OnClick = function(self)
+								actionAura.EnableLinks = self:GetChecked()
+							end,
+						},
+					},
 				},
-				{
-					title = "Show Personal Only",
-					tooltip = "Ignore buffs and debuffs that you CAN cast, but weren't cast by you.",
-					kind = "CheckButton",
-					OnShow = function(self)
-						self:SetChecked(actionAura:Get("personalAurasOnly"))
-					end,
-					OnClick = function(self)
-						actionAura:Set("personalAurasOnly", self:GetChecked())
-					end,
+				{name = "Units",
+					tooltip = "Ignore all buffs or debuffs for a specific unit.",		
+					options = {
+						{
+							kind = "TitleLine",
+							title = "Ignore Unit Buffs",
+							skipping = "buffs",
+							tooltip = "Click to toggle display of this section.",
+						},
+						{
+							title = "Mouseover",
+							tooltip = "Ignore Buffs for Mouseover.",
+							kind = "CheckButton",
+							skipper = "buffs",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("ignoreHelp_mouseover"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("ignoreHelp_mouseover", self:GetChecked())
+							end,
+						},
+						{
+							title = "Target",
+							tooltip = "Ignore Buffs for Target.",
+							kind = "CheckButton",
+							skipper = "buffs",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("ignoreHelp_target"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("ignoreHelp_target", self:GetChecked())
+							end,
+						},
+						{
+							title = "Focus",
+							tooltip = "Ignore Buffs for Focus.",
+							kind = "CheckButton",
+							skipper = "buffs",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("ignoreHelp_focus"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("ignoreHelp_focus", self:GetChecked())
+							end,
+						},
+						{
+							title = "Player",
+							tooltip = "Ignore Buffs for Player.",
+							kind = "CheckButton",
+							skipper = "buffs",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("ignoreHelp_player"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("ignoreHelp_player", self:GetChecked())
+							end,
+						},
+						{
+							kind = "TitleLine",
+							title = "Ignore Unit Debuffs",
+							skipping = "debuff",
+							tooltip = "Click to toggle display of this section.",
+						},
+						{
+							title = "Mouseover",
+							tooltip = "Ignore Debuffs for Mouseover.",
+							kind = "CheckButton",
+							skipper = "debuff",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("ignoreHarm_mouseover"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("ignoreHarm_mouseover", self:GetChecked())
+							end,
+						},
+						{
+							title = "Target",
+							tooltip = "Ignore Debuffs for Target.",
+							kind = "CheckButton",
+							skipper = "debuff",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("ignoreHarm_target"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("ignoreHarm_target", self:GetChecked())
+							end,
+						},
+						{
+							title = "Focus",
+							tooltip = "Ignore Debuffs for Focus.",
+							kind = "CheckButton",
+							skipper = "debuff",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("ignoreHarm_focus"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("ignoreHarm_focus", self:GetChecked())
+							end,
+						},
+						{
+							title = "Player",
+							tooltip = "Ignore Debuffs for Player.",
+							kind = "CheckButton",
+							skipper = "debuff",
+							OnShow = function(self)
+								self:SetChecked(actionAura:Get("ignoreHarm_player"))
+							end,
+							OnClick = function(self)
+								actionAura:Set("ignoreHarm_player", self:GetChecked())
+							end,
+						},
+					},
 				},
-				{
-					title = "Prioritize Aura Timer",
-					tooltip = "Always show aura timer, even if the spell cooldown is longer.",
-					kind = "CheckButton",
-					OnShow = function(self)
-						self:SetChecked(actionAura:Get("prioritizeAura"))
-					end,
-					OnClick = function(self)
-						actionAura:Set("prioritizeAura", self:GetChecked())
-					end,
+				{name = "Translations",
+					tooltip = [[Some buffs and debuffs may not mach the name of the spell that casts them. If this happens, the aura timer will not display on the action button.
+To fix this, type the name of the spell into the "Original" line and press Enter and then type the name of the aura into the "Translation" line and press Enter.]],
+					options = {
+						{
+							kind = "ListFrame",
+							listName = "Original",
+							addText = "Translation",
+							
+							
+							initialList = function(self)
+								self._list = self._list or {} 
+								local list = self._list
+								wipe(list)
+								
+								for key, b in pairs(actionAura:Get("translations")) do
+									tinsert(list, key)
+								end
+
+								return list
+							end,
+							GetList = function(listName)
+								return actionAura:Get("translations")[listName]
+							end,
+							formatText = GetSpellNameFromLink,
+							numButtons = 7,
+							allowDelete = true,
+							DeleteEntry = function(text)
+								actionAura:Get("translations")[text] = nil
+							end,
+							AddEntry = function(text)
+								actionAura:Get("translations")[text] = actionAura:Get("translations")[text] or {}
+							end,
+						},
+					},
+				},
+				{name = "Overrides",
+					tooltip = [[If a spell button is not showing an aura timer, you can attempt to force it to show.
+Select an "Override Aura Type", and type the name of the spell into the "Spell Name" line and press enter.]],
+					options = {
+						{
+							kind = "ListFrame",
+							listName = "Override Aura Type",
+							addText = "Spell Name",
+							initialList = {"Debuff", "Buff", "Ignore"},
+							GetList = function(listName)
+								return actionAura:Get("filterOverride")[string.lower(listName)]
+							end,
+							formatText = GetSpellNameFromLink,
+							numButtons = 7,
+						},
+					},
 				},
 			}
-			for i, unitTarget in pairs(actionAura.units) do
-				tinsert(options, {
-					title = "Ignore ".. unitTarget .." buffs",
-					tooltip = "Ignore Buffs for ".. unitTarget ..".",
-					kind = "CheckButton",
-					OnShow = function(self)
-						self:SetChecked(actionAura:Get("ignoreHelp_"..unitTarget))
-					end,
-					OnClick = function(self)
-						actionAura:Set("ignoreHelp_"..unitTarget, self:GetChecked())
-					end,
-				})
-				tinsert(options, {
-					title = "Ignore ".. unitTarget .." debuffs",
-					tooltip = "Ignore Debuffs for ".. unitTarget ..".",
-					kind = "CheckButton",
-					OnShow = function(self)
-						self:SetChecked(actionAura:Get("ignoreHarm_"..unitTarget))
-					end,
-					OnClick = function(self)
-						actionAura:Set("ignoreHarm_"..unitTarget, self:GetChecked())
-					end,
-				})
-
-			end
-		local basic = self.optionsPanel.New.Page({
-			name = "Basic",
-			options = options,
 		})
 		
-		local transPanel = self.optionsPanel.New.Page({name = "Translations",}); do
-			local topX = 0
+		--custom Pages: panel:AddPage(pageDetails)
+		
+		local spellSpecific = self.optionsPanel:AddPage({name = "Spell Specific",
+		tooltip = "Program each spell individually.",})
 
-			local t = transPanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-			t:SetPoint("TopLeft", 5, topX - 5)
-			t:SetText("Original:")
-
-			local u = transPanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-			u:SetPoint("TopLeft", 5, -30)
-			u:SetText("Translation:")
-
-			self.Original = transPanel.New.advEditBox("TransPanelOriginalSpell")
-			self.Original:SetHeight(25)
-			self.Original:SetPoint("Left", t, "Right", 3, 0)
-			self.Original:SetPoint("TopRight", -30, topX)
-
-
-			self.delete = CreateFrame("Button", AddonName.."DeleteEntry", transPanel)
-			self.delete:SetSize(15, 15)
-			self.delete:SetPoint("Left", self.Original,"Right")
-
-			self.delete:SetHighlightAtlas("bags-glow-artifact")
-			self.delete:SetNormalAtlas("BackupPet-DeadFrame")
-			self.delete:SetPushedAtlas("BattleBar-SwapPetFrame-DeadIcon")
-			self.delete:SetDisabledAtlas("Objective-Fail")
-			self.delete:GetDisabledTexture():SetDesaturated(true)
-
-			self.delete:Disable()
-
-			self.delete:SetScript("OnEnter",  function()
-				GameTooltip:SetOwner(self.delete, "ANCHOR_RIGHT")
-				GameTooltip:SetText("Click to delete all entries for this spell.")
-				GameTooltip:Show()
-			end)
-
-
-			self.delete:SetScript("OnLeave",  function()
-				GameTooltip:Hide()
-			end)
-
-			self.Translation = transPanel.New.advEditBox("TransPanelOriginalSpell")
-			self.Translation:SetHeight(25)
-			self.Translation:SetPoint("TopLeft", self.Original, "BottomLeft", 20, 0)
-			self.Translation:SetPoint("TopRight", -15, topX - 25)
-			--self.Translation:SetPoint("TopRight", self.Original, "BottomRight", 0, 0)
-
-
-			transPanel.Original = self.Original
-			transPanel.Translation = self.Translation
-
-			transPanel:SetScript("OnHide", function(_, delta)
-				transPanel:Show()
-			end)
-			self.Translation.edit:SetNormalAtlas("bags-icon-addslots")
-
-			local line = transPanel:CreateLine(nil, 'ARTWORK', 1)
-			line:SetThickness(2)
-			line:SetStartPoint("TopLeft", 0, -53 + topX)
-			line:SetEndPoint("TopRight", 0, -53 + topX)
-
-			line:SetColorTexture(.8,.8,.8,.4)
-
-			local s = transPanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-			s:SetPoint("Top", line, "Bottom", 0, -5)
-			s:SetText("Translations")
-
-			local buttons = {}
-			local displayOffset = 0
-
-			local slide = CreateFrame("Slider", transPanel:GetName().."Scroll", transPanel, "HorizontalSliderTemplate")
-
-			slide:Hide()
-			slide:SetWidth(18)
-			slide:ClearAllPoints()
-			slide:SetPoint("Top", 0, -65 + topX)
-			slide:SetPoint("BottomRight", -8, 3)
-			slide:SetOrientation("VERTICAL")
-
-			slide:SetScript("OnMouseWheel", function(_, delta)
-				slide:SetValue(floor(slide:GetValue()-delta))
-			end)
-
-			transPanel:SetScript("OnMouseWheel", function(_, delta)
-				slide:SetValue(floor(slide:GetValue()-delta))
-			end)
-
-			local numButtons = 7
-
-			local wi, he = transPanel:GetSize()
-
-			local h = (he - (83 - topX))/numButtons
-
-
-			local w = (wi - 10)
-
-			self.Translation.text:SetScript("OnTextChanged", function()
-				local text = GetSpellNameFromLink(self.Translation.text:GetText())
-				
-				local _ = text ~= self.Translation.text:GetText() and self.Translation.text:SetText(text)
-
-				if not self.Translation.text:HasFocus() then
-					self.Translation.text:SetFocus()
-				end
-			end)
-
-			local CurrentTranslationList
-			local lastSpell
-			local function RegisterNew(spellName, translation)
-				if spellName and spellName ~= "" then
-					actionAura:AddTranslation(spellName or lastSpell, translation)
-					lastSpell = spellName or lastSpell
-					local translations = _G[variables].translations[spellName]
-					CurrentTranslationList = translations
-				end
-				if CurrentTranslationList then
-					local oWidth = wi - 33
-					if #CurrentTranslationList > numButtons then
-						slide:Enable()
-						local v = slide:GetValue()
-						slide:SetMinMaxValues(0, #CurrentTranslationList - numButtons)
-
-						if (not v) or (v == 0) or v > #CurrentTranslationList - numButtons then
-							slide:SetValue(0)
-						end
-						slide:Show()
-						oWidth = wi - 33
-					else
+		local updates = {}
+		
+		local box = spellSpecific.New.DropDownEditBox({title = "Spell", allowDelete = true}); do
+			function box.GetList()
+				box._list = box._list or {} 
+				local list = box._list
+				wipe(list)
+				for key, b in pairs(actionAura:Get("spells")) do
+					tinsert(list, key)
+					actionAura:PingSpell(key)
 					
-						slide:SetMinMaxValues(0, 0)
-						slide:Hide()
-						oWidth = wi - 15
-					end
-
-					for i = 1, numButtons do
-						local b = buttons[i]
-						b:SetWidth(oWidth)
-						b.text:ClearFocus()
-						if CurrentTranslationList[i + displayOffset] then
-							b:Show()
-							b.text:SetText(CurrentTranslationList[i + displayOffset])
-							b.text:SetCursorPosition(0)
-						else
-							b:Hide()
-							b.text:SetText("")
-						end
-					end
-
-				else
-					for i = 1, numButtons do
-						local b = buttons[i]
-						b:Hide()
-					end
-					self.delete:Disable()
-
+					
+					
+					
 				end
+				return list
 			end
-			slide.stepSize = 1
-			transPanel.stepSize = 1
-			transPanel.min = 0
-			transPanel.stepSize = 1
-
-
-			self.Original.text:SetScript("OnTextChanged", function()
-				local text = GetSpellNameFromLink(self.Original.text:GetText())
-
+			
+			box.OnShow = function()
+				box.list = box.GetList()
 				
-				if text and text ~= "" and GetSpellInfo(text) then
-					local _ = text ~= self.Original.text:GetText() and (self.Original.text:SetText(text) == nil and self.Translation.text:SetFocus())
-					RegisterNew(text)
-					if _G[variables].translations[text] then
-						self.delete:Enable()
-					else
-						self.delete:Disable()
-					end
-				else
-					if text ~= self.Original.text:GetText() then
-						self.Original.text:SetText(text)
-					end
-
-					for i = 1, numButtons do
-						local b = buttons[i]
-						b:Hide()
-					end
-
-					slide:Hide()
-
-					self.delete:Disable()
-				end
-			end)
-
-			slide:SetScript("OnValueChanged", function()
-				displayOffset = floor(slide:GetValue())
-				RegisterNew()
-			end)
-
-			self.delete:SetScript("OnClick", function()
-
-				local text = self.Original.text:GetText()
-
-				if text:match(":(%d+)") then --it is a link of some sort
-					if strfind(text, "spell:", 1, true) then
-						-- it is a spell link
-						text = GetSpellInfo(tonumber(text:match("spell:(%d+)")))
-					else
-						--it is not a spell link, don't allow it
-						text = nil
-					end
-				end
-
-
-				if text and text ~= "" then
-					if _G[variables].translations[text] then
-						_G[variables].translations[text] = nil
-						RegisterNew("")
-						self.Original.text:SetText("")
-					end
-				else
-					RegisterNew("")
-				end
-			end)
-
-
-			for i = 1, numButtons do
-				buttons[i] = transPanel.New.advEditBox("Button"..i)
-				buttons[i]:SetSize(w, h)
-				buttons[i]:SetPoint("TopLeft", 5, -(70 - topX) - ((h * (i - 1))))
-
-				buttons[i].edit:SetPushedAtlas("BackupPet-DeadFrame")
-				buttons[i].edit:SetNormalAtlas("BattleBar-SwapPetFrame-DeadIcon")
-
-				buttons[i].edit:SetScript("OnClick", function()
-					tremove(CurrentTranslationList, i + displayOffset)
-					RegisterNew()
-				end)
-
-				buttons[i].text:SetScript("OnEnterPressed", function()
-					CurrentTranslationList[i + displayOffset] = buttons[i].text:GetText()
-					buttons[i].text:ClearFocus()
-					buttons[i].text:SetCursorPosition(0)
-				end)
-
-				buttons[i].text:SetScript("OnEditFocusLost", function()
-					buttons[i].text:SetText(CurrentTranslationList[i + displayOffset] or "")
-				end)
-
-				buttons[i]:Hide()
+				local t = box.text:GetText()
+				local text = t ~= "" and t or box.list[1]
+								
+				box.Update(text)
+				return box.text:SetText(text or "")
 			end
-
-			self.Original.text:SetScript("OnEditFocusGained", function()
-				self.Original.text:HighlightText()
-				ACTIVE_CHAT_EDIT_BOX = self.Original.text
-			end)
-
-			self.Original.text:SetScript("OnEditFocusLost", function()
-				SetActiveEditBox(self.Original.text, self.Translation.text)
-			end)
-
-			self.Original.text:SetScript("OnEnterPressed", function()
-				local text = GetSpellNameFromLink(self.Original.text:GetText())
-
-
+			
+			box.AddEntry = function(text)
 				if text then
-					RegisterNew(text)
-					self.Original.text:SetText(text)
-					self.Translation.text:SetFocus()
-				else
-					self.Original.text:SetText("")
-					self.Original.text:ClearFocus()
-				end
-			end)
-
-			self.Original.edit:SetScript("OnMouseDown", function()
-				if not self.dropDown then
-					self.dropDown = CreateFrame("Frame", AddonName.."DropDown", self.Original, "UIDropDownMenuTemplate")
-					UIDropDownMenu_Initialize(self.dropDown, function(_, level, ...)
-							UIDropDownMenu_AddButton({
-								text = "Library",
-								notCheckable = true,
-								hasArrow = nil,
-								isTitle = true,
-								func = function()
-
-								end,
-							})
-						for spellName, translations in pairs(_G[variables].translations) do
-							UIDropDownMenu_AddButton({
-								text = spellName,
-								notCheckable = true,
-								hasArrow = nil,
-								func = function()
-									self.Original.text:SetText(spellName)
-									RegisterNew(spellName, nil)
-								end,
-							})
-						end
-
-					end, "MENU")
-				end
-				ToggleDropDownMenu(1, 1, self.dropDown, self.Original:GetName(), 0, 0)
-			end)
-
-
-
-			self.Translation.text:SetScript("OnEditFocusGained", function()
-				self.Translation.text:HighlightText()
-				ACTIVE_CHAT_EDIT_BOX = self.Translation.text
-			end)
-
-			self.Translation.text:SetScript("OnEditFocusLost", function()
-				SetActiveEditBox(self.Original.text, self.Translation.text)
-			end)
-
-			self.Translation.text:SetScript("OnEnterPressed", function()
-				if self.Original.text:GetText() ~= "" and self.Translation.text:GetText() ~= "" then
-					local text = GetSpellNameFromLink(self.Translation.text:GetText())
-
-					RegisterNew(self.Original.text:GetText(), text)
-					self.Translation.text:SetText("")
-				end
-			end)
-
-			self.Translation.edit:SetScript("OnClick", function()
-				if self.Original.text:GetText() ~= "" and self.Translation.text:GetText() ~= "" then
-					RegisterNew(self.Original.text:GetText(), self.Translation.text:GetText())
-					self.Translation.text:SetText("")
-				end
-				self.Translation.text:ClearFocus()
-			end)
-
-			transPanel:SetScript("OnShow", function()
-				self.Original.text:SetText("")
-				self.Translation.text:SetText("")
-			
-				ACTIVE_CHAT_EDIT_BOX = self.Original.text
-			end)
-
-			transPanel:SetScript("OnHide", function()
-				ACTIVE_CHAT_EDIT_BOX = nil
-			end)
-		end
-
-		local override = self.optionsPanel.New.Page({name = "Overrides",}); do
-			local t = override:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-			t:SetPoint("TopLeft", 5, -5)
-			t:SetText("Override Aura Type:")
-			
-			
-			local Drop = override.New.DropDown("FilterType")
-			Drop:SetHeight(25)
-			Drop:SetPoint("Left", t, "Right", 3, 0)
-			Drop:SetPoint("TopRight", -15, 0)
-			
-			Drop.text:SetText("Debuff")
-			
-			local u = override:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-			u:SetPoint("TopLeft", 5, -30)
-			u:SetText("Spell Name:")
-			
-			local spellName = override.New.advEditBox("overrideSpellName")
-			spellName:SetHeight(25)
-			spellName:SetPoint("TopLeft", u, "Right", 3, 11)
-			spellName:SetPoint("TopRight", -15, 11)	
-
-			spellName.edit:SetNormalAtlas("bags-icon-addslots")
-
-			local ActiveFilter = "HARMFUL"
-
-
-
-
-
-			local slide = CreateFrame("Slider", override:GetName().."Scroll", override, "HorizontalSliderTemplate")
-
-			slide:Hide()
-			slide:SetWidth(18)
-			slide:ClearAllPoints()
-			slide:SetPoint("Top", 0, -45 + 0)
-			slide:SetPoint("BottomRight", -8, 5)
-			slide:SetOrientation("VERTICAL")
-
-			slide:SetScript("OnMouseWheel", function(_, delta)
-				slide:SetValue(floor(slide:GetValue()-delta))
-			end)
-
-			override:SetScript("OnMouseWheel", function(_, delta)
-				slide:SetValue(floor(slide:GetValue()-delta))
-			end)
-
-			local numButtons = 8
-
-			local wi, he = override:GetSize()
-
-			local h = (he - (60))/numButtons
-
-
-			local w = (wi - 10)
-
-			local buttons = {}
-			local displayOffset = 0
-
-
-
-
-			local CurrentTranslationList
-			local lastSpell
-			local function RegisterNew(spellName)
-				local translations = _G[variables].filterOverride[string.lower(Drop.text:GetText())]
-				CurrentTranslationList = translations
-			
-				if spellName and spellName ~= "" then
-					if not tContains(translations, spellName) then
-						tinsert(translations, spellName)
-					end
-				end
-				if CurrentTranslationList then
-					local oWidth = wi - 33
-					if #CurrentTranslationList > numButtons then
-						slide:Enable()
-						local v = slide:GetValue()
-						slide:SetMinMaxValues(0, #CurrentTranslationList - numButtons)
-
-						if (not v) or (v == 0) or v > #CurrentTranslationList - numButtons then
-							slide:SetValue(0)
-						end
-						slide:Show()
-						oWidth = wi - 33
-					else
-						slide:SetMinMaxValues(0, 0)
-						slide:Hide()
-						oWidth = wi - 15
-					end
-
-					for i = 1, numButtons do
-						local b = buttons[i]
-						b:SetWidth(oWidth)
-						b.text:ClearFocus()
-						if CurrentTranslationList[i + displayOffset] then
-							b:Show()
-							b.text:SetText(CurrentTranslationList[i + displayOffset])
-							b.text:SetCursorPosition(0)
-						else
-							b:Hide()
-							b.text:SetText("")
-						end
-					end
-
-				else
-					for i = 1, numButtons do
-						local b = buttons[i]
-						b:Hide()
-					end
-					self.delete:Disable()
-
-				end
-			end
-			slide.stepSize = 1
-
-
-
-			slide:SetScript("OnValueChanged", function()
-				displayOffset = floor(slide:GetValue())
-				RegisterNew()
-			end)
-
-
-			for i = 1, numButtons do
-				buttons[i] = override.New.advEditBox("Button"..i)
-				buttons[i]:SetSize(w, h)
-				buttons[i]:SetPoint("TopLeft", 5, -(50 - 0) - ((h * (i - 1))))
-
-				buttons[i].edit:SetPushedAtlas("BackupPet-DeadFrame")
-				buttons[i].edit:SetNormalAtlas("BattleBar-SwapPetFrame-DeadIcon")
-
-				buttons[i].edit:SetScript("OnClick", function()
-					tremove(CurrentTranslationList, i + displayOffset)
-					RegisterNew()
-				end)
-
-				buttons[i].text:SetScript("OnEnterPressed", function()
-					CurrentTranslationList[i + displayOffset] = buttons[i].text:GetText()
-					buttons[i].text:ClearFocus()
-					buttons[i].text:SetCursorPosition(0)
-				end)
-
-				buttons[i].text:SetScript("OnEditFocusLost", function()
-					buttons[i].text:SetText(CurrentTranslationList[i + displayOffset] or "")
-				end)
-
-				buttons[i]:Hide()
-			end
-
-
-
-
-
-
-
-			local dropDown
-			Drop.edit:SetScript("OnMouseDown", function()
-				if not dropDown then
-					dropDown = CreateFrame("Frame", AddonName.."DropDown2", Drop, "UIDropDownMenuTemplate")
-					UIDropDownMenu_Initialize(dropDown, function(_, level, ...)
-							UIDropDownMenu_AddButton({
-								text = "Filter Types",
-								notCheckable = true,
-								hasArrow = nil,
-								isTitle = true,
-
-							})
-							UIDropDownMenu_AddButton({
-								text = "Buff",
-								notCheckable = true,
-								hasArrow = nil,
-								func = function()
-									Drop.text:SetText("Buff")
-									RegisterNew()
-								end,
-							})
-							UIDropDownMenu_AddButton({
-								text = "Debuff",
-								notCheckable = true,
-								hasArrow = nil,
-								func = function()
-									Drop.text:SetText("Debuff")
-									RegisterNew()
-								end,
-							})
+					if not actionAura:Get("spells")[text] then
+						actionAura:Get("spells")[text] = actionAura.spellDefaults
 						
-
-					end, "MENU")
+						local auraType = IsHarmfulSpell(text) and "debuff" or IsHelpfulSpell(text) and "buff" or "ignore"
+						
+						actionAura:Get("spells")[text].override = auraType
+						
+					end					
 				end
-				ToggleDropDownMenu(1, 1, dropDown, Drop:GetName(), 0, 0)
-			end)
-
-
-			spellName.text:SetScript("OnTextChanged", function()
-				local text = GetSpellNameFromLink(spellName.text:GetText())
-				
-				local _ = text ~= spellName.text:GetText() and spellName.text:SetText(text)
-
-				if not spellName.text:HasFocus() then
-					spellName.text:SetFocus()
+				box.GetList()
+				box.Update(text)
+			end
+			
+			function box.DeleteEntry(entry)
+				actionAura:Get("spells")[entry] = nil
+				box.Update()
+			end
+			
+			box.Update = function(text)
+				box.GetList()
+				for i, b in pairs(updates) do
+					b(text)
 				end
-			end)
 
-
-
-
-			spellName.text:SetScript("OnEditFocusGained", function()
-				spellName.text:HighlightText()
-				ACTIVE_CHAT_EDIT_BOX = spellName.text
-			end)
-
-			spellName.text:SetScript("OnEditFocusLost", function()
-				ACTIVE_CHAT_EDIT_BOX = nil
-			end)
-
-			spellName.text:SetScript("OnEnterPressed", function()
-				if spellName.text:GetText() ~= "" then
-					RegisterNew(GetSpellNameFromLink(spellName.text:GetText()))
-					spellName.text:SetText("")
+				if box:IsVisible() then
+					for i, item in pairs(box.list) do
+						actionAura:PingSpell(item, item == text)
+					end
 				end
-			end)
-
-			spellName.edit:SetScript("OnClick", function()
-				if spellName.text:GetText() ~= "" then
-					RegisterNew(GetSpellNameFromLink(spellName.text:GetText()))
-					spellName.text:SetText("")
+			end
+			
+			box.Clear = function()
+				if box.list then
+					for i, item in pairs(box.list) do
+						actionAura:PingSpell(item, false)
+					end
 				end
-				spellName.text:ClearFocus()
+			end
+		end
+		
+		spellSpecific.New.TitleLine({title = "Display As:", skipping = "DisplayAs"})
+		
+		local box = spellSpecific.New.DropDown("Status"); do
+			box.skipper = "DisplayAs"
+			box.list = {"Buff", "Debuff", "Ignore"}
+			box:SetHeight(25)
+			box:SetPoint("Right")
+			
+			box.OnShow = function()
+				local up = box.target and box.target.override and (box.target.override:gsub("^%l", string.upper) or box.target.override)
+				box.index = up and tIndexOf(box.list, up) or 1
+			
+				return box.text:SetText(up or "")
+			end
+
+			box.SetValue = function(text)
+				if box.target then
+					box.target.override = text and string.lower(text)
+				else
+					box.text:SetText("")
+				end
+			end
+
+			tinsert(updates, function(text)
+				box.target = actionAura:Get("spells")[text]
+				box.OnShow(box)
 			end)
-
-
-
-RegisterNew()
-
-
+			
+			if spellSpecific.Items and not tContains(spellSpecific.Items, box) then
+				tinsert(spellSpecific.Items, box)
+			end
 		end
 
+		local check = spellSpecific.New.CheckButton({title = "Prioritize Aura Timer",
+			tooltip = "Show the Aura's timer, even if the spell's cooldown is longer.",
+			skipper = "DisplayAs",
+			OnShow = function(self)
+				self:SetChecked(self.target and self.target.auraPriority)
+			end,
+			OnClick = function(self)
+				if self.target then
+					self.target.auraPriority = not self.target.auraPriority
+				else
+					self:SetChecked(false)
+				end
+			end,
+		})
+
+		tinsert(updates, function(text)
+			check:SetTarget(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text])
+			check.OnShow(check)
+		end)
+			
+		local listBox = spellSpecific.New.ListBox({numButtons = 4, unset = true, addText = "Translation", skipper = "DisplayAs", tooltip = "If an aura's name does not match the name of the spell that casts it, add the aura to this list /n May be used for other shenanigans as well, figure it out.",}); do
+			tinsert(updates, function(text)
+				listBox.Adding = text
+				if not text or not actionAura:Get("spells")[text].displayAs then
+					listBox:SetList(nil, true)
+					listBox.clear()
+				end
+				
+				listBox.update(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].displayAs)
+			end)				
+		end
+
+		spellSpecific.New.TitleLine({title = "Flash:", skipping = "flash"})
+		
+		local check = spellSpecific.New.CheckButton({title = "Flash when Missing or Castable",
+			tooltip = "If this spell is not detected on target, flash the action button. |nIf this spell does not cast an aura, it will flash whenever it is not on cooldown.",
+			skipper = "flash",
+			OnShow = function(self)
+				self:SetChecked(self.target and self.target.missingFlash)
+			end,
+			OnClick = function(self)
+				if self.target then
+					self.target.missingFlash = not self.target.missingFlash
+				else
+					self:SetChecked(false)
+				end
+			end,
+		})
+
+		tinsert(updates, function(text)
+			check:SetTarget(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].flashWhen)
+			check.OnShow(check)
+		end)
+
+		local slide = spellSpecific.New.Slider({title = "Time Remaining",
+			tooltip = "If this aura's time remainning is less than this amount, flash the icon.",
+			skipper = "flash",
+			indicatorText = "seconds",
+			OnShow = function(self)
+				if self.target then
+					self:SetValue(self.target and self.target.expireTime or self:GetMinMaxValues())
+					self:Enable()
+				else
+					self:SetValue(self:GetMinMaxValues())
+					self:Disable()
+				end
+				if self.check then
+					self.check:SetChecked(self.target and self.target.expire or false)
+				end
+			end,
+			OnValueChanged = function(self)
+				if self.target then
+					self.target.expireTime = self:GetValue()
+				end
+			end,
+			min = 0,
+			max = 20,
+			checkable = true,
+			SetToggle = function(self, state)
+				if self.target then
+					self.target.expire = state
+				end
+			end,
+			GetToggle = function(self)
+				return self.target and self.target.expire or false
+			end,
+		})
+		
+		tinsert(updates, function(text)
+			slide:SetTarget(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].flashWhen)
+			slide.OnShow(slide)
+		end)
+			
+		local slide = spellSpecific.New.Slider({
+			title = "Stack Count",
+			Absolute = true,
+			tooltip = "If this aura's stack count is greater than this amount, flash the icon. (Zero = no flash)",
+			skipper = "flash",
+			OnShow = function(self)
+				if self.target then
+					self:SetValue(self.target.stackCount or self:GetMinMaxValues())
+					self:Enable()
+				else
+					self:SetValue(self:GetMinMaxValues())
+					self:Disable()
+				end	
+			end,
+			OnValueChanged = function(self)
+				if self.target then
+					self.target.stackCount = self:GetValue()
+				else
+					self.ignore = true
+				--	self:SetValue(self:GetMinMaxValues())
+					self.ignore = nil
+				end
+			end,
+			min = 0,
+			max = 20,
+			checkable = true,
+			SetToggle = function(self, state)
+				if self.target then
+					self.target.stack = state
+				end
+			end,
+			GetToggle = function(self)
+				return self.target and self.target.stack or false
+			end,
+		})
+		
+		tinsert(updates, function(text)
+			slide:SetTarget(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].flashWhen)
+			slide.OnShow(slide)
+		end)
+		
+		local slide = spellSpecific.New.Slider({
+			title = "Health",
+			indicatorText = "percent",
+			tooltip = "If target's health is less than this amount, flash the icon. (Zero = no flash)",
+			skipper = "flash",
+			OnShow = function(self)
+				if self.target then
+					self:SetValue(self.target.healthBelow or self:GetMinMaxValues())
+					self:Enable()
+				else
+					self:SetValue(self:GetMinMaxValues())
+					self:Disable()
+				end	
+			end,
+			OnValueChanged = function(self)
+				if self.target then
+					self.target.healthBelow = self:GetValue()
+				else
+					self.ignore = true
+				--	self:SetValue(self:GetMinMaxValues())
+					self.ignore = nil
+				end
+			end,
+			min = 0,
+			max = 100,
+			checkable = true,
+			SetToggle = function(self, state)
+				if self.target then
+					self.target.health = state
+				end
+			end,
+			GetToggle = function(self)
+				return self.target and self.target.health or false
+			end,
+		})
+		
+		tinsert(updates, function(text)
+			slide:SetTarget(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].flashWhen)
+			slide.OnShow(slide)
+		end)
+
+		local listBox = spellSpecific.New.ListBox({numButtons = 4, unset = true, addText = "Missing", skipper = "flash"}); do
+			listBox.Create = function(text)
+				if listBox.Adding and actionAura:Get("spells")[listBox.Adding] then
+					return actionAura:Get("spells")[listBox.Adding].flashWhen.missing
+				end
+			end
+			
+			tinsert(updates, function(text)
+				listBox.Adding = text
+				if not text or  not actionAura:Get("spells")[text].flashWhen or not actionAura:Get("spells")[text].flashWhen.missing then
+					listBox:SetList(nil, true)
+					listBox.clear()
+				end
+				
+				listBox.update(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].flashWhen.missing)
+			end)
+		end
+
+		local listBox = spellSpecific.New.ListBox({numButtons = 4, unset = true, addText = "Present", skipper = "flash"}); do
+			listBox.Create = function(text)
+				if listBox.Adding and actionAura:Get("spells")[listBox.Adding].flashWhen then
+					--actionAura:Get("spells")[listBox.Adding].flashWhen.present = actionAura:Get("spells")[listBox.Adding].flashWhen.present or {}
+					return actionAura:Get("spells")[listBox.Adding].flashWhen.present
+				end
+			end
+			
+			tinsert(updates, function(text)
+				listBox.Adding = text
+				if not text or not actionAura:Get("spells")[text] or not actionAura:Get("spells")[text].flashWhen.present then
+					listBox.clear()
+				end
+				
+				listBox.update(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].flashWhen.present)
+			end)
+		end
+
+		
+		local check = spellSpecific.New.CheckButton({title = "Combat Restrict",
+			tooltip = "Resrict some flashes to only happen in combat. (Missing(self), Time Remaining and Cooldown Completes)",
+			skipper = "flash",
+			OnShow = function(self)
+				self:SetChecked(self.target and self.target.combatOnly)
+			end,
+			OnClick = function(self)
+				if self.target then
+					self.target.combatOnly = not self.target.combatOnly
+				else
+					self:SetChecked(false)
+				end
+			end,
+		})
+
+		tinsert(updates, function(text)
+			check:SetTarget(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].flashWhen)
+			check.OnShow(check)
+		end)
+
+
+		spellSpecific.New.TitleLine({title = "Ignore Friendly units:", skipping = "units"})
+
+		for i, unit in pairs(possibleUnits) do
+			local check = spellSpecific.New.CheckButton({title = firstToUpper(unit), skipper = "units",
+				tooltip = "Dont track any helpful information about this aura, for "..firstToUpper(unit),
+				OnShow = function(self)
+					self:SetChecked(self.target and self.target[unit])
+				end,
+				OnClick = function(self)
+					if self.target then
+						self.target[unit] = not self.target[unit]
+					else
+						self:SetChecked(false)
+					end
+				end,
+			})
+
+			tinsert(updates, function(text)
+				check:SetTarget(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].units)
+				check.OnShow(check)
+			end)
+		end	
+		spellSpecific.New.TitleLine({title = "Ignore Enemy Units:", skipping = "eunits"})
+
+		for i, unit in pairs(possibleUnits) do
+			local check = spellSpecific.New.CheckButton({title = firstToUpper(unit), skipper = "eunits",
+				tooltip = "Don't track any harmful information about this aura, for "..firstToUpper(unit),
+				OnShow = function(self)
+					self:SetChecked(self.target and self.target[unit])
+				end,
+				OnClick = function(self)
+					if self.target then
+						self.target[unit] = not self.target[unit]
+					else
+						self:SetChecked(false)
+					end
+				end,
+			})
+
+			tinsert(updates, function(text)
+				check:SetTarget(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].harm)
+				check.OnShow(check)
+			end)
+		end	
+
+		box.OnShow(box)
+
+		spellSpecific.Layout()
 	end
 
 	self.optionsPanel:Show()
 end
 
-function actionAura:RunCommand(Cmd, ...)
-	local cmdStrings = string.lower(Cmd)
-	if string.find(cmdStrings, "reset", 1) then
-		self:Reset()
-	else
-		actionAura:ShowTranslationPanel()
+actionAura:AddCmd("default", function(self, ...)
+	self:ShowOptions(...)
+end)
+
+local LAB10
+
+local bars = {
+	{"ActionButton", 1, 12}, --"ActionButton", --12
+	{"MultiBarRightButton", 25, 36}, --"MultiBarRightButton", --12
+	{"MultiBarLeftButton", 37, 48}, --"MultiBarLeftButton", --12
+	{"MultiBarBottomRightButton", 49, 60}, --"MultiBarBottomRightButton", --12
+	{"MultiBarBottomLeftButton", 61, 72}, --"MultiBarBottomLeftButton", --12
+}
+
+function actionAura:GetButtons(shouldReload)
+	if #allActionButtons == 0 or shouldReload then
+		if Dominos then
+			for i, actionButton in pairs(Dominos.ActionButtons) do
+				actionAura:RegisterButton(actionButton)
+			end
+		end
+		
+		if Bartender4 then
+			LAB10 = LAB10 or LibStub("LibActionButton-1.0")
+			for actionButton in next, LAB10:GetAllButtons() do
+				actionAura:RegisterButton(actionButton)
+			end
+		end
+		
+		for _, barDetails in pairs(bars) do
+			local name, low, high = unpack(barDetails)
+			
+			for i = low, high do
+				actionAura:RegisterButton(_G[name..i])
+			end
+		end
 	end
+	return allActionButtons
 end
-
-SlashCmdList[string.upper(AddonName)] = function(Cmd, ...)
-	actionAura:RunCommand(Cmd, ...)
-end
-
-_G["SLASH_".. string.upper(AddonName) .."1"] = "/aaura"
-_G["SLASH_".. string.upper(AddonName) .."2"] = "/"..string.lower(AddonName)

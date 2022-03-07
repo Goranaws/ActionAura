@@ -1,10 +1,17 @@
-## Interface: 90105
+## Interface: 90200
 ## Title: ActionAura
-## Notes: Adds a cooldown timer on action buttons for the duration of auras that you have cast on your target.
+## Notes: Adds a cooldown timer on action buttons for the duration of buffs/debuffs that you have cast on your target. (and more...)
 ## Author: Goranaws
 ## SavedVariables: actionAura_SV
-## Version: 1.2
+## OptionalDeps: Dominos, Bartender4, LibActionButton-1.0
+## Version: 2.2
 
 libs\LibStub\LibStub.lua
 libs\AceAddon-3.0\AceAddon-3.0.xml
+template.xml
+Loader.lua
+libs\toolBelt\toolBelt.xml
+slashCommander.lua
+options.lua
 ActionAura.lua
+initialize.lua
