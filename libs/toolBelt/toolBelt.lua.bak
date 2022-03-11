@@ -586,6 +586,7 @@ function toolbelt.DropDownEditBox(parent, optionInfo)
 	button.index = 1
 
 	button:SetScript("OnMouseWheel", function(_, delta)
+		
 		local list = type(button.list) == "table" and button.list or type(button.list)=="function" and button.list()
 		
 		button.index = button.index + delta

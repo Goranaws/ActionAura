@@ -578,35 +578,15 @@ local function shouldAuraPing(spellName, unit, filter, flashSettings, count, las
 	return shouldPing, count, spellExpire, name
 end
 
---[[Flash Logic Explanation
-	
-	A: Get Details
-		1: Determine type of spell
-			-Debuff or Buff
-		2: Find applicable friendly targetUnit
-		3: Find applicable enemy targetUnit
-	
-	B:Priority for flashes
-		1: Health below specified amount 
-		2: Aura/Spell expire time
-		3: Aura Missing
-		4: Aura Present
-		5: Spell is Castable/ Not on cooldown, or Aura is not present
-		6: Aura/Spell Stack Count
-	
-	
---]]
-
 local function TryPing(button, spellName, actionType, spellID, spellSettings, flashSettings)
 	local shouldPing = false
 	
 	 --Does this spell have specific settings?
 	if spellSettings then
 		--Spell Specific Settings have been found!
-		--1A
 		local override = spellSettings.override or IsHarmfulSpell(spellName) and "debuff" or IsHelpfulSpell(spellName) and "buff" or "debuff"
 
-		local unit; do--1B
+		local unit; do
 			for i, b in pairs(possibleUnits) do
 				if spellSettings.units[b] == false then
 					--This unit is not being ignored!
@@ -618,7 +598,7 @@ local function TryPing(button, spellName, actionType, spellID, spellSettings, fl
 			end
 		end
 
-		local reactionUnit; do--1C
+		local reactionUnit; do
 			for i, b in pairs(possibleUnits) do
 				if spellSettings.harm[b] == false then
 					--This unit is not being ignored!
@@ -629,7 +609,6 @@ local function TryPing(button, spellName, actionType, spellID, spellSettings, fl
 			end
 		end
 	
---1. Health
 		if flashSettings.health == true and reactionUnit then
 			local value, high = UnitHealth(reactionUnit), UnitHealthMax(reactionUnit) 
 			if (value / high) * 100 <= flashSettings.healthBelow then
