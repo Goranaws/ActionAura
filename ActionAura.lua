@@ -229,14 +229,21 @@ local auraColor = {
 local dataControl = CreateFrame("Frame")
 dataControl.Auras = {}
 
-local function updateSpell(spellName)
-	local filter = actionAura:GetFilter(spellName)
-	local unit = GetUnit[filter] and GetUnit[filter](spellName)
+local lastUnit = {}
+local function UpdateSpells(unit, filter)
+	if not (unit and filter) then
+		lastUnit[filter] = nil
+		return
+	end
+	if lastUnit[filter] ~= unit then
+		dataControl.Auras = {}
+	end
 	
-	if unit then
-		local name, icon, count, dispelType, duration, expirationTime, source = AuraUtil.FindAuraByName(spellName, unit, filter)
-
-		if name and isUnitPlayer[source] then
+	local index = 1
+	local name, icon, count, dispelType, duration, expirationTime, source, _, _, spellId = UnitAura(unit, index, filter) 
+	
+	while name do
+		if isUnitPlayer[source] then
 			dataControl.Auras[name] = dataControl.Auras[name] or {}
 			local details = dataControl.Auras[name]
 			
@@ -248,48 +255,30 @@ local function updateSpell(spellName)
 			details.unit = unit
 			details.filter = filter
 			details.count = count
-			return unit
-		elseif dataControl.Auras[spellName] then
-			dataControl.Auras[spellName] = nil
+			details.spellId = spellId
 		end
+		index = index + 1
+		name, icon, count, dispelType, duration, expirationTime, source = UnitAura(unit, index, filter) 
 	end
-end
-
-local function Extras(auraList, unit)
-	for i, spellName in pairs(auraList) do
-		updateSpell(spellName)
-	end
+	lastUnit[filter] = unit
 end
 
 dataControl:SetScript("OnUpdate", function()
-	for spellName, settings in pairs(actionAura:Get("spells")) do
-		if not settings.override ~= "ignore" then
-			updateSpell(spellName)
-			Extras(settings.displayAs)
-			Extras(settings.flashWhen.missing)
-			Extras(settings.flashWhen.present)
+	for i, unit in pairs(possibleUnits) do
+		local enemy = HarmfulUnitIsPresent(unit)
+		if enemy then
+			UpdateSpells(unit, "HARMFUL")
+			break
 		end
 	end
-	
-	
-	for i, spellName in pairs(actionAura:Get("translations")) do
-		updateSpell(spellName)
-	end
-	
-	for i, spellName in pairs(actionAura:Get("translations")) do
-		updateSpell(spellName)
-	end
-	
-	for kind, list in pairs(actionAura:Get("filterOverride")) do
-		if kind ~= "ignore" then
-			for i, spellName in pairs(list) do
-				updateSpell(spellName)
-			end
+	for i, unit in pairs(possibleUnits) do
+		local friend = HelpfulUnitIsPresent(unit)
+		if friend then
+			UpdateSpells(unit, "HELPFUL")
+			break
 		end
 	end
-	
 end)
-
 
 --The Machinery!
 function actionAura:GetActionIndex(actionButton)
@@ -324,6 +313,9 @@ function actionAura:GetAuraTarget(actionType, actionID, filter, auraName)
 end
 
 function actionAura:GetFilter(spellName)
+	if not spellName then
+		return
+	end
 	local filter = IsHarmfulSpell(spellName) and "HARMFUL" or IsHelpfulSpell(spellName) and "HELPFUL" or "HARMFUL"
 
 	local filterOverride = self:Get("filterOverride")
