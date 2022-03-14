@@ -1250,13 +1250,11 @@ function toolbelt.ListBox(panel, optionInfo)
 		end
 		
 		listBox.update()
-		
 	end
 	
 	listBox:SetScript("OnSizeChanged", function()
 		if optionInfo.unset then				
-			--listBox:SetHeight(min(200, panel:GetParent():GetParent():GetHeight()*(.5)))
-
+			listBox:SetHeight(min(200, panel:GetParent():GetParent():GetHeight()*(.5)))
 		end
 		SetButtons()
 	end)

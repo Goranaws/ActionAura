@@ -70,7 +70,7 @@ function toolbelt.Page(parent, optionInfo)
 	end	
 	
 	page:SetScript("OnUpdate", function()
-		if page.Update then
+		if page.shouldUpdate then
 			page:Update()
 		end
 	end)
@@ -114,12 +114,11 @@ function toolbelt.Page(parent, optionInfo)
 
 	page.used = {}
 	local function SetScroll(instant)
-		local baseHeight = page.Viewport:GetHeight() 
+		local baseHeight = page:GetHeight() 
 
 		slide:SetShown(page.objectHeight > baseHeight)
 		page:SetWidth( page.Viewport:GetWidth() - (slide:IsVisible() and 25 or 0))
 
-	
 		local value = floor(page.scrollValue)
 		local count = 0
 
@@ -138,27 +137,32 @@ function toolbelt.Page(parent, optionInfo)
 
 		local object = page.used[page.scrollValue]
 		if object then
-			local value = object.Position
-
+			page.value = object.Position
 			CloseDropDownMenus()
 			if not instant then
-				local prevValue = page:GetVerticalScroll()
+				page.prevValue = page:GetVerticalScroll()
 
-				local Fps = ceil(GetFramerate()/6)
+				page.Fps = ceil(GetFramerate()/6)
 				
-				local increment = (value - prevValue) / Fps
-				local index = 0
+				page.increment = (page.value - page.prevValue) / page.Fps
+				page.index = 0
+				page.shouldUpdate = true
+				page.Update = page.Update or function()
+					page.index = min(page.Fps+1, page.index + 1)
 
-				page.Update = function()
-					index = min(Fps+1, index + 1)
-					if index >= Fps+1 then
-						page.Update = nil
+					local newVal
+					if page.index >= page.Fps+1 then
+						newVal = page.value
+						page.shouldUpdate = nil
 					else
-						page:SetVerticalScroll(min(page.objectHeight - baseHeight, prevValue + (index * increment)))
+						newVal = page.prevValue + (page.index * page.increment)
 					end
+					
+					page:SetVerticalScroll(min(page.objectHeight -  page:GetHeight() , newVal))
 				end
 			else
-				page:SetVerticalScroll(value)
+				page.shouldUpdate = nil
+				page:SetVerticalScroll(page.value)
 			end
 		end		
 	end
@@ -184,8 +188,12 @@ function toolbelt.Page(parent, optionInfo)
 			skipping = object.skipping or skipping
 			
 			if not object.SkipSetPoint then
-				object:SetShown((skipping and skipping == object.skipper and false) or true)
-					
+				if skipping and skipping == object.skipper then
+					object:SetShown(false)
+				else
+					object:SetShown(true)
+				end
+				
 				if object:IsShown() then
 					object:SetPoint("TopLeft", 0, #page.used == 0 and 0 or -page.objectHeight)
 					tinsert(page.used, object)
@@ -200,19 +208,20 @@ function toolbelt.Page(parent, optionInfo)
 			end
 		end
 		
-		if page.objectHeight > page.Viewport:GetHeight() then
-			SetScroll()
-		 else
+		if page.objectHeight <= page:GetHeight() then
 			page.scrollValue = 1
-			page:SetWidth(( page.Viewport:GetWidth()))
-			page:SetVerticalScroll(0)
 		 end
+
+		SetScroll(true)
 	end
 
-	page.Index = #parent.pages
+	page.Index = #parent.pages + 1
 
 	page:SetScript("OnSizeChanged", function()
-		page.PageAnchor:SetSize(page:GetSize())
+		local w, h = page:GetSize()
+		page.PageAnchor:SetSize(w, h - (page.offset or 0))
+
+		page.Layout()
 	end)
 
 	if #parent.pages < 1 then
@@ -540,7 +549,7 @@ function panelMixin:ResizeOnMouseUp()
 end
 
 function panelMixin:OnUpdate()
-	if self.Update then
+	if self.shouldUpdate then
 		self:Update()
 	end
 end
@@ -565,21 +574,23 @@ function panelMixin:OnMouseWheel(delta)
 
 	self.page = self.pageIndex
 
-	local value = page.pageValue
+	local p = self.PageButton
 
-	local prevValue = self.Viewport:GetHorizontalScroll()
+	p.value = page.pageValue
 
-	local Fps = ceil(GetFramerate()/3)
+	p.prevValue = self.Viewport:GetHorizontalScroll()
+
+	p.Fps = ceil(GetFramerate()/3)
 	
-	local increment = (value - prevValue) / Fps
-	local index = 0
-
-	self.PageButton.Update = function()
-		index = min(Fps+1, index + 1)
-		if index >= Fps+1 then
-			self.PageButton.Update = nil
+	p.increment = (p.value - p.prevValue) / p.Fps
+	p.index = 0
+	self.PageButton.shouldUpdate = true
+	self.PageButton.Update = self.PageButton.Update or function()
+		p.index = min(p.Fps+1, p.index + 1)
+		if p.index >= p.Fps+1 then
+			self.PageButton.shouldUpdate = nil
 		else
-			self.Viewport:SetHorizontalScroll(prevValue + (index * increment))
+			self.Viewport:SetHorizontalScroll(p.prevValue + (p.index * p.increment))
 		end
 	end
 

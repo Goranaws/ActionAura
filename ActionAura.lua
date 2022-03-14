@@ -227,7 +227,7 @@ local auraColor = {
 
 --Datas Source
 local dataControl = CreateFrame("Frame")
-dataControl.Auras = {}
+dataControl.Auras = {} --combined list of auras on helpful AND harmful targets.
 
 local lastUnit = {}
 local function UpdateSpells(unit, filter)
@@ -236,7 +236,7 @@ local function UpdateSpells(unit, filter)
 		return
 	end
 	if lastUnit[filter] ~= unit then
-		dataControl.Auras = {}
+		--dataControl.Auras = {}
 	end
 	
 	local index = 1
@@ -256,6 +256,8 @@ local function UpdateSpells(unit, filter)
 			details.filter = filter
 			details.count = count
 			details.spellId = spellId
+			details.targetUnit = unit
+			details.unitID = UnitGUID(unit)
 		end
 		index = index + 1
 		name, icon, count, dispelType, duration, expirationTime, source = UnitAura(unit, index, filter) 
@@ -264,19 +266,49 @@ local function UpdateSpells(unit, filter)
 end
 
 dataControl:SetScript("OnUpdate", function()
+	local enemy
 	for i, unit in pairs(possibleUnits) do
-		local enemy = HarmfulUnitIsPresent(unit)
+		enemy = HarmfulUnitIsPresent(unit)
 		if enemy then
+			enemy = unit
 			UpdateSpells(unit, "HARMFUL")
 			break
 		end
 	end
+	if not enemy then
+		lastUnit.HARMFUL = nil
+	end
+	local friend
 	for i, unit in pairs(possibleUnits) do
-		local friend = HelpfulUnitIsPresent(unit)
+		friend = HelpfulUnitIsPresent(unit)
 		if friend then
+			friend = unit
 			UpdateSpells(unit, "HELPFUL")
 			break
 		end
+	end
+	if not friend then
+		lastUnit.HELPFUL = nil
+	end	
+	
+	for spellName, details in pairs (dataControl.Auras) do
+		if (details.expirationTime - GetTime() < 0)
+		or (not UnitExists(details.targetUnit))
+		or (details.unitID ~= UnitGUID(details.targetUnit)) then
+			dataControl.Auras[spellName] = nil
+		end
+		if details.filter == "HARMFUL" then
+			if details.unit ~= enemy then
+				dataControl.Auras[spellName] = nil
+			end
+		end
+		if details.filter == "HELPFUL" then
+			if details.unit ~= friend then
+				dataControl.Auras[spellName] = nil
+			end
+		end
+		
+		
 	end
 end)
 
@@ -553,7 +585,7 @@ end
 
 local lastGCD
 
-local function shouldAuraPing(spellName, unit, filter, flashSettings, count, lastGCD, spellExpire, shouldPing)
+local function shouldAuraPing(spellName, unit, filter, flashSettings, count, lastGCD, spellExpire)
 	local auraCount
 	local name, duration, expireTime, _, _, auraCount = actionAura.FindAuraByName(spellName, unit, filter)
 	
@@ -567,7 +599,7 @@ local function shouldAuraPing(spellName, unit, filter, flashSettings, count, las
 		spellExpire = expireTime - GetTime()
 	end
 	
-	return shouldPing, count, spellExpire, name
+	return count, spellExpire, name
 end
 
 --[[Flash Logic Explanation
@@ -590,8 +622,6 @@ end
 --]]
 
 local function TryPing(button, spellName, actionType, spellID, spellSettings, flashSettings)
-	local shouldPing = false
-	
 	 --Does this spell have specific settings?
 	if spellSettings then
 		--Spell Specific Settings have been found!
@@ -621,22 +651,28 @@ local function TryPing(button, spellName, actionType, spellID, spellSettings, fl
 			end
 		end
 	
---1. Health
-		if flashSettings.health == true and reactionUnit then
-			local value, high = UnitHealth(reactionUnit), UnitHealthMax(reactionUnit) 
-			if (value / high) * 100 <= flashSettings.healthBelow then
-				shouldPing = true
-			end
-		end
+		local healthBelow, noCooldown, spellsMissing, spellsPresent, stackCount, auraMissing
+
 		
 		--combatRestrict is not enabled, or we are in combat!
 		local combat = flashSettings.combatOnly ~= true and true or InCombatLockdown() 
 		
-		--What type of spell are we tracking?
-		local filter = override == "debuff" and "HARMFUL" or override == "buff" and "HELPFUL"
+		if combat then
+			--1. Health
+			if flashSettings.health == true and reactionUnit then
+				local value, high = UnitHealth(reactionUnit), UnitHealthMax(reactionUnit)
+				local percent = (value / high) * 100 
+
+				if percent <= flashSettings.healthBelow then
+					healthBelow = true
+				end
+			end
+
+			--What type of spell are we tracking?
+			local filter = override == "debuff" and "HARMFUL" or override == "buff" and "HELPFUL"
 
 		
-		do --flashSettings.missingFlash = false, flashSettings.expire = false, flashSettings.expireTime = 0,
+			--flashSettings.missingFlash = false, flashSettings.expire = false, flashSettings.expireTime = 0,
 		
 			local spellStart, spellDuration = GetSpellCooldown(spellName)
 			spellStart = spellStart ~= 0 and spellStart
@@ -645,65 +681,90 @@ local function TryPing(button, spellName, actionType, spellID, spellSettings, fl
 			local count = GetSpellCharges(spellName)
 
 			local spellExpire = spellStart and spellStart + spellDuration - GetTime()	
-
+			local auraExpire
 			if unit then
 				local name; do
-					if not spellDuration or (spellDuration <= lastGCD) == true then
-						--there is no cooldown or it's less than the Global Cooldown
-						shouldPing, count, spellExpire, name = shouldAuraPing(spellName, unit, filter, flashSettings, count, lastGCD, spellExpire, shouldPing)
-						
-						for i, spellName in pairs(spellSettings.displayAs) do
-							shouldPing, count, spellExpire, name = shouldAuraPing(spellName, unit, filter, flashSettings, count, lastGCD, spellExpire, shouldPing)
-						end
+					if (flashSettings.missingFlash == true) then
+						if not spellDuration or (spellDuration <= lastGCD) == true then
+							--there is no cooldown or it's less than the Global Cooldown
+							local _count, _auraExpire, _name = shouldAuraPing(spellName, unit, filter, flashSettings, count, lastGCD, spellExpire)
+							
+							if not _name then
+								for i, spellName in pairs(spellSettings.displayAs) do
+									_count, _auraExpire, _name = shouldAuraPing(spellName, unit, filter, flashSettings, count, lastGCD, spellExpire)
+								end
+							end
 
-						if combat and flashSettings.expire == true then
-							if not spellExpire or spellExpire <= flashSettings.expireTime then
-								--the spell was on cooldown or had an aura timer, and it's time is about to expire.
-								shouldPing = true
+							if _name then
+								count, auraExpire, name = _count, _auraExpire, _name
+								auraMissing = nil
+							else
+								auraMissing = true
 							end
 						end
-						
-						-- count, spellExpire, shouldPing, name
+					else
+						auraMissing = nil
 					end
 				end
 				
-				if not name and (not spellExpire or spellExpire <= lastGCD) and combat and flashSettings.missingFlash == true then
-					--this spell is not present on target, and the spell can be casted
-					shouldPing = true
+				if (flashSettings.missingFlash == true and auraMissing == true) or true then
+					if (flashSettings.castable == true)then
+						if not spellExpire then
+							noCooldown = true
+						end
+					end
+					if spellExpire and flashSettings.expire == true then
+						if spellExpire <= flashSettings.expireTime then
+							noCooldown = true
+						end					
+					end
 				end
-		
+				
 				if not spellExpire then --Don't highlight a spell, unless it can be casted.
 					for i, missingSpell in pairs(flashSettings.missing) do
 						local name = actionAura.FindAuraByName(missingSpell, unit)--, filter)); --We don't care what type of spell it is, react to it's existence
 						if not name then
 							--one the spells on this spell's missing list was not found
-							shouldPing = true
+							spellsMissing = true
 						end
 					end
 					for i, presentSpell in pairs(flashSettings.present) do
 						local name  = actionAura.FindAuraByName(presentSpell, unit)--, filter));
 						if name then
 							--one the spells on this spell's present list was found
-							shouldPing = true
+							spellsPresent = true
 						end
 					end
+				else
+					--if the spell can't be cast(aura Active or on Cooldown), override these
+					healthBelow = nil
+					stackCount = nil
 				end
 			end
 			
-			if combat and flashSettings.stack == true and count and count ~= 0 then
+			if flashSettings.stack == true and count and count ~= 0 then
 				local style = gsub(gsub(flashSettings.stackStyle or "Aura Above or Equal", "Aura ", ""), "Spell ", "")
 						
-				shouldPing = style == "Above" and count > flashSettings.stackCount
+				stackCount = style == "Above" and count > flashSettings.stackCount
 						  or style == "Above or Equal" and count >= flashSettings.stackCount
 						  or style == "Below" and count < flashSettings.stackCount
 						  or style == "Below or Equal" and count <= flashSettings.stackCount
 						  or style == "Exact" and count == flashSettings.stackCount
-						  or shouldPing
+						  or nil
 			end
 
 		end
+	
+		 local shouldPing = healthBelow
+						   or auraMissing
+						   or noCooldown
+						   or spellsMissing
+						   or spellsPresent
+						   or stackCount
+						   or nil
 		
-		actionAura:Ping(button, shouldPing, spellName)
+
+		actionAura:Ping(button, combat and shouldPing, spellName)
 	end
 end
 
@@ -1058,10 +1119,10 @@ Select an "Override Aura Type", and type the name of the spell into the "Spell N
 
 		local updates = {}
 		
-		local box = spellSpecific.New.DropDownEditBox({title = "Spell", allowDelete = true}); do
-			function box.GetList()
-				box._list = box._list or {} 
-				local list = box._list
+		local SpellSelect = spellSpecific.New.DropDownEditBox({title = "Spell", allowDelete = true}); do
+			function SpellSelect.GetList()
+				SpellSelect._list = SpellSelect._list or {} 
+				local list = SpellSelect._list
 				wipe(list)
 				for key, b in pairs(actionAura:Get("spells")) do
 					tinsert(list, key)
@@ -1074,17 +1135,17 @@ Select an "Override Aura Type", and type the name of the spell into the "Spell N
 				return list
 			end
 			
-			box.OnShow = function()
-				box.list = box.GetList()
+			SpellSelect.OnShow = function()
+				SpellSelect.list = SpellSelect.GetList()
 				
-				local t = box.text:GetText()
-				local text = t ~= "" and t or box.list[1]
+				local t = SpellSelect.text:GetText()
+				local text = t ~= "" and t or SpellSelect.list[1]
 								
-				box.Update(text)
-				return box.text:SetText(text or "")
+				SpellSelect.Update(text)
+				return SpellSelect.text:SetText(text or "")
 			end
 			
-			box.AddEntry = function(text)
+			SpellSelect.AddEntry = function(text)
 				if text then
 					if not actionAura:Get("spells")[text] then
 						actionAura:Get("spells")[text] = actionAura.spellDefaults
@@ -1095,36 +1156,48 @@ Select an "Override Aura Type", and type the name of the spell into the "Spell N
 						
 					end					
 				end
-				box.GetList()
-				box.Update(text)
+				SpellSelect.GetList()
+				SpellSelect.Update(text)
 			end
 			
-			function box.DeleteEntry(entry)
+			function SpellSelect.DeleteEntry(entry)
 				actionAura:Get("spells")[entry] = nil
-				box.Update()
+				SpellSelect.Update()
 			end
 			
-			box.Update = function(text)
-				box.GetList()
+			SpellSelect.Update = function(text)
+				SpellSelect.GetList()
 				for i, b in pairs(updates) do
 					b(text)
 				end
 
-				if box:IsVisible() then
-					for i, item in pairs(box.list) do
+				if SpellSelect:IsVisible() then
+					for i, item in pairs(SpellSelect.list) do
 						actionAura:PingSpell(item, item == text)
 					end
 				end
 			end
 			
-			box.Clear = function()
-				if box.list then
-					for i, item in pairs(box.list) do
+			SpellSelect.Clear = function()
+				if SpellSelect.list then
+					for i, item in pairs(SpellSelect.list) do
 						actionAura:PingSpell(item, false)
 					end
 				end
 			end
 		end
+		
+		tremove(spellSpecific.Items, 1)
+		spellSpecific.offset = 25
+		SpellSelect:ClearAllPoints()
+		local p = SpellSelect:GetParent()
+		SpellSelect:SetParent(spellSpecific:GetParent())
+		SpellSelect:SetPoint("Bottom", spellSpecific, "Top", 0, 3)
+		
+		SpellSelect:SetPoint("Left", spellSpecific)
+		SpellSelect:SetPoint("Right", spellSpecific, - 15, 0)
+		
+		spellSpecific:SetPoint("Top", 0, -(SpellSelect:GetHeight() + 3))
 		
 		spellSpecific.New.TitleLine({title = "Display As:", skipping = "DisplayAs"})
 		
@@ -1193,8 +1266,8 @@ Select an "Override Aura Type", and type the name of the spell into the "Spell N
 
 		spellSpecific.New.TitleLine({title = "Flash:", skipping = "flash"})
 		
-		local check = spellSpecific.New.CheckButton({title = "Flash when Missing or Castable",
-			tooltip = "If this spell is not detected on target, flash the action button. |nIf this spell does not cast an aura, it will flash whenever it is not on cooldown.",
+		local check = spellSpecific.New.CheckButton({title = "Flash when Aura Missing",
+			tooltip = "If this spell is not detected on target, flash the action button.",
 			skipper = "flash",
 			OnShow = function(self)
 				self:SetChecked(self.target and self.target.missingFlash)
@@ -1202,6 +1275,26 @@ Select an "Override Aura Type", and type the name of the spell into the "Spell N
 			OnClick = function(self)
 				if self.target then
 					self.target.missingFlash = not self.target.missingFlash
+				else
+					self:SetChecked(false)
+				end
+			end,
+		})
+
+		tinsert(updates, function(text)
+			check:SetTarget(text and actionAura:Get("spells")[text] and actionAura:Get("spells")[text].flashWhen)
+			check.OnShow(check)
+		end)
+		
+		local check = spellSpecific.New.CheckButton({title = "Flash when Spell is Castable",
+			tooltip = "If this spell is not on cooldown, flash the action button",
+			skipper = "flash",
+			OnShow = function(self)
+				self:SetChecked(self.target and self.target.castable)
+			end,
+			OnClick = function(self)
+				if self.target then
+					self.target.castable = not self.target.castable
 				else
 					self:SetChecked(false)
 				end
@@ -1307,34 +1400,34 @@ Select an "Override Aura Type", and type the name of the spell into the "Spell N
 		}
 		
 	--stackStyle	
-		local box = spellSpecific.New.DropDown("Stack Style"); do
-			box.skipper = "DisplayAs"
-			box.list = stackStyle
-			box:SetHeight(25)
-			box:SetPoint("Right")
+		local stack = spellSpecific.New.DropDown("Stack Style"); do
+			stack.skipper = "flash"
+			stack.list = stackStyle
+			stack:SetHeight(25)
+			stack:SetPoint("Right")
 			
-			box.OnShow = function()
-				local up = box.target and box.target.stackStyle and (box.target.stackStyle:gsub("^%l", string.upper) or box.target.stackStyle)
-				box.index = up and tIndexOf(box.list, up) or 1
+			stack.OnShow = function()
+				local up = stack.target and stack.target.stackStyle and (stack.target.stackStyle:gsub("^%l", string.upper) or stack.target.stackStyle)
+				stack.index = up and tIndexOf(stack.list, up) or 1
 			
-				return box.text:SetText(up or "")
+				return stack.text:SetText(up or "")
 			end
 
-			box.SetValue = function(text)
-				if box.target then
-					box.target.stackStyle = text
+			stack.SetValue = function(text)
+				if stack.target then
+					stack.target.stackStyle = text
 				else
-					box.text:SetText("")
+					stack.text:SetText("")
 				end
 			end
 
 			tinsert(updates, function(text)
-				box.target = actionAura:Get("spells")[text].flashWhen
-				box.OnShow(box)
+				stack.target = actionAura:Get("spells")[text].flashWhen
+				stack.OnShow(stack)
 			end)
 			
-			if spellSpecific.Items and not tContains(spellSpecific.Items, box) then
-				tinsert(spellSpecific.Items, box)
+			if spellSpecific.Items and not tContains(spellSpecific.Items, stack) then
+				tinsert(spellSpecific.Items, stack)
 			end
 		end
 
@@ -1436,7 +1529,6 @@ Select an "Override Aura Type", and type the name of the spell into the "Spell N
 			check.OnShow(check)
 		end)
 
-
 		spellSpecific.New.TitleLine({title = "Ignore Friendly units:", skipping = "units"})
 
 		for i, unit in pairs(possibleUnits) do
@@ -1482,7 +1574,7 @@ Select an "Override Aura Type", and type the name of the spell into the "Spell N
 			end)
 		end	
 
-		box.OnShow(box)
+		SpellSelect.OnShow(SpellSelect)
 
 		spellSpecific.Layout()
 	end

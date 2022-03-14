@@ -4,7 +4,7 @@
 ## Author: Goranaws
 ## SavedVariables: actionAura_SV
 ## OptionalDeps: Dominos, Bartender4, LibActionButton-1.0
-## Version: 2.4
+## Version: 2.6
 
 libs\LibStub\LibStub.lua
 libs\AceAddon-3.0\AceAddon-3.0.xml
